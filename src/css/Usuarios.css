@@ -1,0 +1,48 @@
+/**
+ * Usuarios.css
+ * ─────────────────────────────────────────────────────────
+ * Estilos exclusivos del módulo de Gestión de Usuarios de SmartHall.
+ *
+ * Clases definidas:
+ *  - .usuarios-header       → Fila superior con título y botón de acción.
+ *  - .usuarios-filters      → Barra de filtros (búsqueda, perfil, estado).
+ *  - .usuarios-loading      → Caja placeholder mientras cargan los datos.
+ *  - .usuarios-modal-actions → Fila de botones en el footer del modal.
+ */
+
+/* ── Cabecera: Título + Botón de Registro ────────────────── */
+.usuarios-header {
+  display: flex;
+  justify-content: space-between;   /* Título a la izquierda, botón a la derecha */
+  align-items: center;
+  margin-bottom: 2rem;              /* Espacio antes de la barra de filtros */
+}
+
+/* ── Barra de Filtros ────────────────────────────────────── */
+.usuarios-filters {
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  border-radius: 12px;    /* Bordes suaves para armonía con el diseño global */
+}
+
+/* ── Placeholder de Carga ────────────────────────────────── */
+.usuarios-loading {
+  padding: 4rem;
+  text-align: center;
+  color: var(--text-muted);
+  background-color: white;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+/* ── Acciones del Modal (Descartar / Confirmar) ─────────── */
+.usuarios-modal-actions {
+  display: flex;
+  justify-content: flex-end;    /* Botones alineados a la derecha */
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);  /* Línea separadora del formulario */
+}

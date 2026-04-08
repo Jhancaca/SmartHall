@@ -1,0 +1,71 @@
+/**
+ * Dashboard.css
+ * ─────────────────────────────────────────────────────────
+ * Estilos exclusivos del panel principal (Dashboard) de SmartHall.
+ *
+ * Clases definidas:
+ *  - .dashboard-header      → Sección de saludo y descripción de la página.
+ *  - .dashboard-stats-grid  → Cuadrícula responsiva de tarjetas KPI.
+ *  - .dashboard-stat-card   → Tarjeta individual de indicador clave.
+ *  - .dashboard-icon-box    → Caja cuadrada que contiene el ícono del KPI.
+ *  - .dashboard-stat-label  → Etiqueta en mayúsculas del KPI.
+ *  - .dashboard-stat-value  → Número o texto grande del valor del KPI.
+ *  - .dashboard-support     → Tarjeta de información de soporte residencial.
+ */
+
+/* ── Cabecera del Dashboard ──────────────────────────────── */
+.dashboard-header {
+  margin-bottom: 2.5rem;  /* Espacio antes de la grilla de tarjetas */
+}
+
+/* ── Cuadrícula de Tarjetas KPI ──────────────────────────── */
+.dashboard-stats-grid {
+  display: grid;
+  /* Columnas automáticas que se adaptan al ancho disponible */
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+/* ── Tarjeta Individual de Indicador ────────────────────── */
+.dashboard-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;              /* Espacio entre el ícono y el texto */
+  padding: 2rem;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+/* ── Caja de Ícono (color dinámico aplicado por JS) ────────  */
+.dashboard-icon-box {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;      /* Bordes redondeados generosos */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* El color de fondo es definido dinámicamente en el componente (color con opacidad 15) */
+  flex-shrink: 0;           /* Evita que se comprima en pantallas pequeñas */
+}
+
+/* ── Etiqueta del Indicador ─────────────────────────────── */
+.dashboard-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;    /* Presentación en mayúsculas */
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
+/* ── Valor Principal del Indicador ─────────────────────── */
+.dashboard-stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  /* El color es dinámico (success, primary, danger según el KPI) */
+}
+
+/* ── Tarjeta Informativa de Soporte ─────────────────────── */
+.dashboard-support {
+  margin-top: 2.5rem;   /* Separación de la grilla de KPIs */
+}

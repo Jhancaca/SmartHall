@@ -1,0 +1,163 @@
+/**
+ * Login.css
+ * ─────────────────────────────────────────────────────────
+ * Estilos exclusivos de la pantalla de inicio de sesión de SmartHall.
+ *
+ * Estructura visual de dos columnas:
+ *  - .login-container       → Wrapper flex que ocupa toda la pantalla.
+ *  - .login-left            → Panel izquierdo blanco con el formulario.
+ *  - .login-form-container  → Caja centrada que limita el ancho del formulario.
+ *  - .login-brand           → Fila de logo + nombre del sistema.
+ *  - .login-logo-square     → Caja azul cuadrada con el ícono Building2.
+ *  - .login-title           → Título principal "¡Hola de nuevo!".
+ *  - .login-subtitle        → Subtítulo descriptivo debajo del título.
+ *  - .login-error           → Alerta roja de credenciales incorrectas.
+ *  - .login-form            → Elemento <form> en columna.
+ *  - .login-forgot          → Enlace de "¿Olvidaste tu contraseña?".
+ *  - .login-submit          → Botón de envío del formulario.
+ *  - .login-footer          → Texto de soporte al pie del panel.
+ *  - .login-right           → Panel derecho con gradiente azul decorativo.
+ *  - .login-right-content   → Contenido centr ado en el panel derecho.
+ *  - .login-quote           → Cita en cursiva dentro del panel derecho.
+ *  - .login-divider         → Línea decorativa azul clara horizontal.
+ */
+
+/* ── Contenedor Principal ────────────────────────────────── */
+.login-container {
+  display: flex;        /* Disposición horizontal de dos paneles */
+  min-height: 100vh;    /* Ocupa toda la altura de la ventana */
+  overflow: hidden;     /* Evita barras de scroll innecesarias */
+}
+
+/* ── Panel Izquierdo: Formulario ─────────────────────────── */
+.login-left {
+  flex: 1;                  /* Ocupa el espacio disponible */
+  background-color: var(--white);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* Centra verticalmente el formulario */
+  align-items: center;      /* Centra horizontalmente el formulario */
+  padding: 3rem;
+}
+
+/* Contenedor interno del formulario con ancho máximo */
+.login-form-container {
+  width: 100%;
+  max-width: 420px;   /* Limita el ancho para legibilidad óptima */
+}
+
+/* ── Branding: Logo + Nombre ─────────────────────────────── */
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 3rem;  /* Espacio visual antes del título */
+}
+
+.login-logo-square {
+  background-color: var(--primary);      /* Azul primario del sistema */
+  padding: 0.6rem;
+  border-radius: 12px;
+  display: flex;
+  /* Sombra azulada que refuerza la identidad del sistema */
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+/* ── Textos Principales ──────────────────────────────────── */
+.login-title {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.login-subtitle {
+  color: var(--text-muted);
+  margin-bottom: 2.5rem;
+  font-size: 0.95rem;
+}
+
+/* ── Alerta de Error ─────────────────────────────────────── */
+.login-error {
+  background-color: #FEF2F2;    /* Fondo rojo muy suave */
+  color: var(--danger);
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid #FEE2E2;    /* Borde rojo tenue */
+  text-align: center;
+}
+
+/* ── Formulario ──────────────────────────────────────────── */
+.login-form {
+  display: flex;
+  flex-direction: column;   /* Campos apilados verticalmente */
+}
+
+/* Enlace secundario "¿Olvidaste tu contraseña?" */
+.login-forgot {
+  font-size: 0.75rem;
+  color: var(--primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Botón principal de acceso */
+.login-submit {
+  width: 100%;
+  padding: 0.9rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  /* Sombra azulada para efecto de elevación en el botón */
+  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.4);
+}
+
+/* Texto de soporte al pie del formulario */
+.login-footer {
+  margin-top: 2.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ── Panel Derecho: Decorativo ───────────────────────────── */
+.login-right {
+  flex: 1.2;                  /* Ligeramente más ancho que el panel izquierdo */
+  /* Gradiente diagonal azul a azul oscuro (identidad visual Premium) */
+  background: linear-gradient(135deg, #2563EB 0%, #172554 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  padding: 4rem;
+  position: relative;
+}
+
+/* Contenedor central del contenido decorativo */
+.login-right-content {
+  max-width: 500px;
+  z-index: 2;   /* Queda por encima de posibles pseudoelementos decorativos */
+  text-align: center;
+}
+
+/* Cita en cursiva que promueve los servicios del residencial */
+.login-quote {
+  font-size: 1.5rem;
+  font-weight: 400;
+  font-style: italic;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+/* Línea decorativa azul clara entre la cita y el pie de texto */
+.login-divider {
+  width: 60px;
+  height: 4px;
+  background-color: #60A5FA;          /* Azul más claro para contraste */
+  margin: 0 auto 1.5rem auto;         /* Centrado horizontal */
+  border-radius: 2px;
+}

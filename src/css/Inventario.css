@@ -1,0 +1,67 @@
+/**
+ * Inventario.css
+ * ─────────────────────────────────────────────────────────
+ * Estilos exclusivos del módulo de Gestión de Inventario de SmartHall.
+ *
+ * Clases definidas:
+ *  - .inventario-header       → Fila con título y botón de nuevo activo.
+ *  - .inventario-filters      → Barra de filtros por categoría y estado.
+ *  - .inventario-asset-thumb  → Miniatura de ícono para cada activo en la tabla.
+ *  - .inventario-loading      → Caja placeholder mientras se sincroniza con la BD.
+ *  - .inventario-counts       → Bloque de campos numéricos (stock) en el formulario.
+ *  - .inventario-modal-actions → Fila de botones en el footer del modal.
+ */
+
+/* ── Cabecera: Título + Botón de Nuevo Activo ───────────── */
+.inventario-header {
+  display: flex;
+  justify-content: space-between;   /* Título a la izquierda, botón a la derecha */
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+/* ── Barra de Filtros ────────────────────────────────────── */
+.inventario-filters {
+  padding: 1rem 1.5rem;
+  display: flex;
+  gap: 1rem;            /* Separación entre cada select de filtro */
+  margin-bottom: 0.5rem;
+  border-radius: 12px;
+}
+
+/* ── Miniatura de Activo en Tabla ────────────────────────── */
+.inventario-asset-thumb {
+  background-color: var(--primary-light);   /* Azul muy suave */
+  padding: 0.5rem;
+  border-radius: 8px;
+  display: flex;    /* Centra el ícono dentro de la caja */
+}
+
+/* ── Placeholder de Carga ────────────────────────────────── */
+.inventario-loading {
+  padding: 4rem;
+  text-align: center;
+  color: var(--text-muted);
+  background-color: white;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+/* ── Bloque de Cantidades en el Formulario (Stock) ──────── */
+.inventario-counts {
+  display: flex;
+  gap: 1rem;
+  background-color: var(--bg);    /* Fondo gris suave para diferenciar la sección */
+  padding: 1rem;
+  border-radius: 10px;
+}
+
+/* ── Acciones del Modal (Cancelar / Confirmar) ──────────── */
+.inventario-modal-actions {
+  display: flex;
+  justify-content: flex-end;    /* Botones alineados a la derecha */
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
