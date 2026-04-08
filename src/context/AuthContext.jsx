@@ -86,15 +86,54 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * getAuthErrorMessage
+   * Convierte los errores de Supabase en mensajes amigables.
+   */
+  const getAuthErrorMessage = (error) => {
+    const message = error.message?.toLowerCase() || '';
+    const details = error.details?.toLowerCase() || '';
+    
+    // Credenciales inválidas
+    if (message.includes('invalid login credentials') || details.includes('invalid login credentials')) {
+      return { type: 'invalid_credentials', message: 'El correo o contraseña son incorrectos. Verifica tus datos e intenta nuevamente.' };
+    }
+    
+    // Usuario no existe
+    if (message.includes('user not found') || details.includes('user not found')) {
+      return { type: 'user_not_found', message: 'Este usuario no existe en el sistema. Contacta a administración.' };
+    }
+    
+    // Email no confirmado
+    if (message.includes('email not confirmed') || details.includes('email not confirmed')) {
+      return { type: 'email_not_confirmed', message: 'Tu correo aún no ha sido confirmado. Revisa tu bandeja de entrada.' };
+    }
+    
+    // Demasiados intentos fallidos
+    if (message.includes('too many requests') || details.includes('too many requests')) {
+      return { type: 'too_many_attempts', message: 'Demasiados intentos fallidos. Intenta más tarde.' };
+    }
+    
+    // Usuario deshabilitado
+    if (message.includes('disabled') || details.includes('disabled')) {
+      return { type: 'user_disabled', message: 'Tu cuenta ha sido deshabilitada. Contacta a administración.' };
+    }
+    
+    // Error genérico
+    return { type: 'generic_error', message: error.message || error.details || 'Error de autenticación. Intenta nuevamente.' };
+  };
+
+  /**
    * signIn
    * Intenta iniciar sesión con email y contraseña.
+   * NO modifica setLoading para no bloquear la interfaz durante el login.
    */
   const signIn = async (email, password) => {
-    setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setLoading(false);
-      throw error;
+      const errorInfo = getAuthErrorMessage(error);
+      const err = new Error(errorInfo.message);
+      err.type = errorInfo.type;
+      throw err;
     }
     return data;
   };

@@ -1,0 +1,193 @@
+/* Login.module.css
+ * Estilos CSS Modules para la pantalla de inicio de sesión.
+ */
+
+.container {
+  display: flex;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.leftPanel {
+  flex: 1;
+  background-color: var(--white);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+}
+
+.formContainer {
+  width: 100%;
+  max-width: 420px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+
+.logoSquare {
+  background-color: var(--primary);
+  padding: 0.75rem;
+  border-radius: 12px;
+  display: flex;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.subtitle {
+  color: var(--text-muted);
+  margin-bottom: 2.5rem;
+  font-size: 0.95rem;
+}
+
+.errorAlert {
+  background-color: #FEF2F2;
+  color: var(--danger);
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid #FEE2E2;
+  text-align: left;
+  animation: slideIn 0.3s ease-out;
+}
+
+.errorAlert.error-invalid_credentials {
+  background-color: #FEF2F2;
+  border-color: #FECACA;
+  color: #DC2626;
+}
+
+.errorAlert.error-user_not_found {
+  background-color: #FEF3C7;
+  border-color: #FCD34D;
+  color: #D97706;
+}
+
+.errorAlert.error-email_not_confirmed {
+  background-color: #DBEAFE;
+  border-color: #93C5FD;
+  color: #1E40AF;
+}
+
+.errorAlert.error-too_many_attempts {
+  background-color: #F3E8FF;
+  border-color: #DDD6FE;
+  color: #7E22CE;
+}
+
+.errorAlert.error-user_disabled {
+  background-color: #FEE2E2;
+  border-color: #FEE2E2;
+  color: #7F1D1D;
+}
+
+.errorAlert.error-validation_error {
+  background-color: #ECF0F1;
+  border-color: #BDC3C7;
+  color: #2C3E50;
+  font-weight: 600;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.forgotPass {
+  font-size: 0.75rem;
+  color: var(--primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.submitBtn {
+  width: 100%;
+  padding: 0.9rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.footerText {
+  margin-top: 2.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.rightPanel {
+  flex: 1.2;
+  background: linear-gradient(135deg, #2563EB 0%, #172554 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  padding: 4rem;
+  position: relative;
+}
+
+.rightContent {
+  max-width: 500px;
+  z-index: 2;
+  text-align: center;
+}
+
+.quoteCard {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  padding: 2rem;
+}
+
+.quote {
+  font-size: 1.5rem;
+  font-weight: 400;
+  font-style: italic;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+.divider {
+  width: 60px;
+  height: 4px;
+  background-color: #60A5FA;
+  margin: 0 auto 1.5rem auto;
+  border-radius: 2px;
+}

@@ -42,7 +42,7 @@ const Sidebar = () => {
         </div>
         <div style={styles.branding}>
           <h1 style={styles.brandName}>SmartHall</h1>
-          <p style={styles.brandSub}>RESIDENTIAL CONCIERGE</p>
+          <p style={styles.brandSub}>Software Residencial</p>
         </div>
       </div>
 

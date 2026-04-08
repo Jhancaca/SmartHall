@@ -15,9 +15,6 @@
  * IMPORTANTE: Nunca escribas las credenciales directamente aquí.
  * Siempre usa el archivo .env y asegúrate de que esté en .gitignore.
  *
- * Variables de entorno requeridas en .env:
- *  VITE_SUPABASE_URL      = https://TU_PROYECTO.supabase.co
- *  VITE_SUPABASE_ANON_KEY = TU_CLAVE_ANONIMA
  */
 
 import { createClient } from '@supabase/supabase-js';

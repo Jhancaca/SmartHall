@@ -25,7 +25,11 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   // Estado para el control de la visibilidad de alertas de error
-  const [errorVisible, setErrorVisible] = useState(''); 
+  const [errorVisible, setErrorVisible] = useState('');
+  // Estado para el tipo de error (para estilos específicos)
+  const [errorType, setErrorType] = useState('');
+  // Estado para indicar carga durante el login
+  const [loggingIn, setLoggingIn] = useState(false); 
   
   // Extraemos la función de acceso desde nuestro contexto
   const { signIn } = useAuth();
@@ -35,16 +39,38 @@ const Login = () => {
   /**
    * handleLogin
    * Ejecuta el proceso de autenticación. Si es exitoso, redirige al
-   * dashboard. Si falla, muestra un mensaje de error claro en la UI.
+   * dashboard. Si falla, muestra un mensaje de error específico según el tipo.
    */
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorVisible('');
+    setErrorType('');
+    setLoggingIn(true);
+    
+    // Validación básica del lado del cliente
+    if (!email.trim()) {
+      setErrorVisible('Por favor ingresa tu correo electrónico.');
+      setErrorType('validation_error');
+      setLoggingIn(false);
+      return;
+    }
+    
+    if (!password) {
+      setErrorVisible('Por favor ingresa tu contraseña.');
+      setErrorType('validation_error');
+      setLoggingIn(false);
+      return;
+    }
+    
     try {
       await signIn(email, password);
+      setLoggingIn(false);
       navigate('/'); // Redirección al éxito
     } catch (err) {
-      setErrorVisible('Credenciales incorrectas. Verifica tu correo y contraseña.');
+      console.error('Error de inicio de sesión:', err);
+      setErrorVisible(err.message || 'Error desconocido. Intenta nuevamente.');
+      setErrorType(err.type || 'generic_error');
+      setLoggingIn(false);
     }
   };
 
@@ -63,7 +89,7 @@ const Login = () => {
             <div>
               {/* Estilos en línea mínimos conservados solo para variaciones específicas de tipografía global */}
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>SmartHall</h1>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>RESIDENTIAL CONCIERGE</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Software de Gestión Residencial</p>
             </div>
           </div>
 
@@ -73,8 +99,22 @@ const Login = () => {
 
           {/* Renderizado condicional del mensaje de error */}
           {errorVisible && (
-            <div className={styles.errorAlert}>
-              {errorVisible}
+            <div className={`${styles.errorAlert} ${styles[`error-${errorType}`]}`}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: '1.2rem', lineHeight: 1.2 }}>⚠️</span>
+                <div>
+                  <p style={{ margin: '0 0 0.5rem 0', fontWeight: 600 }}>{
+                    errorType === 'invalid_credentials' ? 'Credenciales inválidas' :
+                    errorType === 'user_not_found' ? 'Usuario no encontrado' :
+                    errorType === 'email_not_confirmed' ? 'Correo no confirmado' :
+                    errorType === 'too_many_attempts' ? 'Demasiados intentos' :
+                    errorType === 'user_disabled' ? 'Cuenta deshabilitada' :
+                    errorType === 'validation_error' ? 'Validación requerida' :
+                    'Error de autenticación'
+                  }</p>
+                  <p style={{ margin: 0, fontSize: '0.9rem' }}>{errorVisible}</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -108,8 +148,9 @@ const Login = () => {
             </div>
 
             {/* Acción principal: botón de envío */}
-            <button type="submit" className={`btn-primary ${styles.submitBtn}`}>
-              Acceder a mi Dashboard <ArrowRight size={18} />
+            <button type="submit" className={`btn-primary ${styles.submitBtn}`} disabled={loggingIn}>
+              {loggingIn ? 'Iniciando sesión...' : 'Acceder a mi Dashboard'} 
+              {!loggingIn && <ArrowRight size={18} style={{ marginLeft: '0.5rem' }} />}
             </button>
           </form>
 
