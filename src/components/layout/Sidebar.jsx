@@ -11,23 +11,31 @@
  */
 
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Package, Settings, Calendar, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users, Package, Settings, Calendar, Building2, CheckCircle, RotateCcw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = () => {
   const { profile } = useAuth();
-  
-  // Verificación de roles para mostrar u ocultar opciones
   const isAdmin = profile?.rol === 'administrador';
+  const isSupervisor = profile?.rol === 'supervisor';
 
   // Configuración de los ítems del menú
   const menuItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Reservas', path: '/reservas', icon: Calendar },
-    { name: 'Inventario', path: '/inventario', icon: Package },
+    { name: 'Calendario', path: '/reservas/calendario', icon: Calendar },
   ];
 
-  // Añadir opciones exclusivas de administrador
+  // Si es residente, ver catálogo. Si es admin/supervisor, ver inventario.
+  if (isAdmin || isSupervisor) {
+    menuItems.push({ name: 'Inventario', path: '/inventario', icon: Package });
+    menuItems.push({ name: 'Aprobaciones', path: '/admin/aprobaciones', icon: CheckCircle });
+    menuItems.push({ name: 'Préstamos', path: '/admin/prestamos', icon: RotateCcw });
+  } else {
+    menuItems.push({ name: 'Catálogo', path: '/insumos', icon: Package });
+  }
+
+  // Opciones exclusivas de administrador
   if (isAdmin) {
     menuItems.push({ name: 'Usuarios', path: '/usuarios', icon: Users });
     menuItems.push({ name: 'Configuración', path: '/configuracion', icon: Settings });
@@ -60,10 +68,10 @@ const Sidebar = () => {
             {({ isActive }) => (
               <>
                 {/* El ícono cambia de color si está activo */}
-                <item.icon 
-                  size={20} 
+                <item.icon
+                  size={20}
                   strokeWidth={isActive ? 2.5 : 2}
-                  color={isActive ? 'var(--primary)' : 'var(--text-muted)'} 
+                  color={isActive ? 'var(--primary)' : 'var(--text-muted)'}
                 />
                 <span style={{ fontWeight: isActive ? 600 : 500 }}>{item.name}</span>
               </>
@@ -74,7 +82,7 @@ const Sidebar = () => {
 
       {/* Footer del Sidebar (Versión o info adicional) */}
       <div style={styles.footer}>
-        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>v1.0.0 (Entrega 1)</p>
+        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>v1.0.0</p>
       </div>
     </aside>
   );

@@ -19,13 +19,16 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 import { AuthProvider } from './context/AuthContext.jsx'
+import { SearchProvider } from './context/SearchContext.jsx'
 
 // Monta la aplicación en el nodo #root definido en index.html
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     {/* AuthProvider: hace disponible el estado de sesión globalmente */}
     <AuthProvider>
-      <App />
+      <SearchProvider>
+        <App />
+      </SearchProvider>
     </AuthProvider>
   </React.StrictMode>,
 )

@@ -9,7 +9,7 @@
  *  - Realiza las operaciones CRUD (Crear, Actualizar, Borrar).
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 export const useInventario = () => {
@@ -102,9 +102,50 @@ export const useInventario = () => {
     }
   };
 
+  /**
+   * Suscripción Realtime para Insumos
+   */
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:insumos')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'insumos' },
+        (payload) => {
+          fetchInsumos();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchInsumos]);
+
+  /**
+   * obtenerInsumosCriticos
+   * Retorna la cantidad de insumos cuya cantidad disponible es menor o igual a la mínima.
+   */
+  const obtenerInsumosCriticos = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('insumos')
+        .select('id')
+        .lte('cantidad_disponible', 'cantidad_minima')
+        .gt('cantidad_minima', 0); // Solo contar si tienen un stock mínimo definido
+
+      if (error) throw error;
+      return data.length;
+    } catch (err) {
+      console.error('Error obteniendo insumos críticos:', err);
+      return 0;
+    }
+  }, []);
+
   return { 
     insumos, categorias, loading, error, 
     fetchInsumos, fetchCategorias, 
-    createInsumo, updateInsumo, deleteInsumo 
+    createInsumo, updateInsumo, deleteInsumo,
+    obtenerInsumosCriticos
   };
 };

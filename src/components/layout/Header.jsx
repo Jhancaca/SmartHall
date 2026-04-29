@@ -11,10 +11,37 @@
  */
 
 import { LogOut, Bell, HelpCircle, Search as SearchIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useSearch } from '../../context/SearchContext';
+import NotificationCenter from '../ui/NotificationCenter';
 
 const Header = () => {
   const { profile, signOut } = useAuth();
+  const { globalQuery, setGlobalQuery } = useSearch();
+  const navigate = useNavigate();
+
+  const handleSearch = (e) => {
+    if (e.key === 'Enter' && globalQuery.trim() !== '') {
+      const query = globalQuery.toLowerCase();
+      
+      // Heurística de navegación basada en palabras clave
+      const keywordsInventario = ['silla', 'mesa', 'luces', 'sonido', 'inventario', 'insumo', 'activo', 'televisor', 'parlante', 'aire'];
+      const keywordsUsuarios = ['residente', 'usuario', 'perfil', 'apartamento', 'torre', 'personal'];
+      const keywordsReservas = ['reserva', 'evento', 'fiesta', 'asamblea', 'reunion', 'fecha'];
+
+      if (keywordsInventario.some(k => query.includes(k))) {
+        navigate('/inventario');
+      } else if (keywordsUsuarios.some(k => query.includes(k))) {
+        navigate('/usuarios');
+      } else if (keywordsReservas.some(k => query.includes(k))) {
+        navigate('/reservas');
+      } else {
+        // Por defecto, si busca un nombre o algo genérico, llevar a Reservas que es lo más común
+        navigate('/reservas');
+      }
+    }
+  };
 
   return (
     <header style={styles.header}>
@@ -24,20 +51,20 @@ const Header = () => {
           <SearchIcon size={18} color="var(--text-muted)" />
           <input 
             type="text" 
-            placeholder="Buscar residentes, insumos o reservas..." 
+            placeholder="Buscar residentes, insumos o reservas... (Presiona Enter)" 
             style={styles.searchInput}
+            value={globalQuery}
+            onChange={(e) => setGlobalQuery(e.target.value)}
+            onKeyDown={handleSearch}
           />
         </div>
       </div>
 
       {/* Sección de Acciones y Usuario */}
       <div style={styles.actionsContainer}>
-        {/* Iconos de utilidad */}
-        <button style={styles.iconButton} title="Notificaciones">
-          <Bell size={20} />
-          {/* Indicador de notificación */}
-          <span style={styles.notifBadge}></span>
-        </button>
+        {/* Centro de Notificaciones */}
+        <NotificationCenter />
+
         <button style={styles.iconButton} title="Preguntas frecuentes">
           <HelpCircle size={20} />
         </button>

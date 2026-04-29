@@ -24,7 +24,13 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Usuarios from './pages/Usuarios';
 import Inventario from './pages/Inventario';
-import ComingSoon from './pages/ComingSoon';
+import Reservas from './pages/Reservas';
+import NuevaReserva from './pages/NuevaReserva';
+import AprobacionReservas from './pages/AprobacionReservas';
+import GestionPrestamos from './pages/GestionPrestamos';
+import CalendarioReservas from './pages/CalendarioReservas';
+import Configuracion from './pages/Configuracion';
+import InsumosResidente from './pages/InsumosResidente';
 
 /**
  * PrivateRoute
@@ -83,24 +89,59 @@ function App() {
           </PrivateRoute>
         } />
 
-        {/* Inventario: visible para todos los roles (modo lectura para residentes) */}
-        <Route path="/inventario" element={
+        {/* Catálogo de Insumos (Residente) */}
+        <Route path="/insumos" element={
           <PrivateRoute>
+            <InsumosResidente />
+          </PrivateRoute>
+        } />
+
+        {/* Inventario: Gestión administrativa */}
+        <Route path="/inventario" element={
+          <PrivateRoute allowedRoles={['administrador', 'supervisor']}>
             <Inventario />
           </PrivateRoute>
         } />
 
-        {/* Reservas: módulo no implementado aún */}
+        {/* Reservas: listado de reservas */}
         <Route path="/reservas" element={
           <PrivateRoute>
-            <ComingSoon modulo="Módulo de Reservas" />
+            <Reservas />
           </PrivateRoute>
         } />
 
-        {/* Configuración: módulo no implementado, solo admin */}
+        {/* Nueva Reserva: formulario */}
+        <Route path="/reservas/nueva" element={
+          <PrivateRoute>
+            <NuevaReserva />
+          </PrivateRoute>
+        } />
+
+        {/* Calendario de Reservas: vista mensual */}
+        <Route path="/reservas/calendario" element={
+          <PrivateRoute>
+            <CalendarioReservas />
+          </PrivateRoute>
+        } />
+
+        {/* Aprobación de Reservas: admin y supervisor */}
+        <Route path="/admin/aprobaciones" element={
+          <PrivateRoute allowedRoles={['administrador', 'supervisor']}>
+            <AprobacionReservas />
+          </PrivateRoute>
+        } />
+
+        {/* Gestión de Préstamos: admin y supervisor */}
+        <Route path="/admin/prestamos" element={
+          <PrivateRoute allowedRoles={['administrador', 'supervisor']}>
+            <GestionPrestamos />
+          </PrivateRoute>
+        } />
+
+        {/* Configuración: solo admin */}
         <Route path="/configuracion" element={
           <PrivateRoute allowedRoles={['administrador']}>
-            <ComingSoon modulo="Módulo de Configuración" />
+            <Configuracion />
           </PrivateRoute>
         } />
 

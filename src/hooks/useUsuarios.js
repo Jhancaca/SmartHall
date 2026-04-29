@@ -10,7 +10,7 @@
  *  - Obtener la lista de perfiles disponibles (administrador, supervisor, residente).
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 export const useUsuarios = () => {
@@ -122,6 +122,26 @@ export const useUsuarios = () => {
       return { success: false, error: err.message };
     }
   };
+
+  /**
+   * Suscripción Realtime para Usuarios
+   */
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:usuarios')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'usuarios' },
+        (payload) => {
+          fetchUsuarios();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchUsuarios]);
 
   return { usuarios, loading, error, fetchUsuarios, getPerfiles, createUsuario, updateUsuario, deleteUsuario };
 };
