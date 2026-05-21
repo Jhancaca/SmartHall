@@ -14,9 +14,11 @@ import { useInventario } from '../hooks/useInventario';
 import EstadoBadge from '../components/ui/EstadoBadge';
 import Modal from '../components/ui/Modal';
 import { Plus, Eye, X, AlertTriangle, Calendar, Trash2, Search, Package, Check, AlertCircle } from 'lucide-react';
+import { useUIFeedback } from '../context/UIFeedbackContext';
 
 const Reservas = () => {
     const navigate = useNavigate();
+    const { showToast } = useUIFeedback();
     const { user, profile } = useAuth();
     const { globalQuery } = useSearch();
     const isAdmin = profile?.rol === 'administrador';
@@ -167,7 +169,7 @@ const Reservas = () => {
 
     const handleEliminarReserva = (reserva) => {
         if (!isAdmin) {
-            alert('Solo el administrador puede eliminar registros permanentemente.');
+            showToast('Solo el administrador puede eliminar registros permanentemente.', 'warning');
             return;
         }
         setReservaEliminar(reserva);
@@ -179,7 +181,7 @@ const Reservas = () => {
         
         // Si la reserva estaba aprobada, el motivo es obligatorio
         if (reservaCancelar.estado === 'aprobada' && !motivoCancelacion.trim()) {
-            alert('Debes proporcionar un motivo para cancelar una reserva aprobada.');
+            showToast('Debes proporcionar un motivo para cancelar una reserva aprobada.', 'warning');
             return;
         }
 
@@ -496,7 +498,7 @@ const Reservas = () => {
                             />
                         )}
 
-                        <div style={styles.botonesModal}>
+                        <div style={styles.botonesModalConfirm}>
                             <button onClick={() => setIsCancelacionAbierto(false)} style={styles.botonModalSecundario}>Volver</button>
                             <button 
                                 onClick={confirmarCancelacion} 
@@ -518,7 +520,7 @@ const Reservas = () => {
                             <h2 style={styles.modalTitulo}>¿Eliminar permanentemente?</h2>
                             <p style={styles.modalDescripcion}>Este registro desaparecerá de la base de datos y no se podrá recuperar.</p>
                         </div>
-                        <div style={styles.botonesModal}>
+                        <div style={styles.botonesModalConfirm}>
                             <button onClick={() => setIsEliminacionAbierto(false)} style={styles.botonModalSecundario}>Cancelar</button>
                             <button onClick={confirmarEliminacion} disabled={procesando} style={{...styles.botonModalPrimario, backgroundColor: '#EF4444'}}>{procesando ? 'Eliminando...' : 'Sí, eliminar'}</button>
                         </div>
@@ -575,7 +577,7 @@ const styles = {
     botonCerrarModal: { width: '100%', backgroundColor: '#2563EB', color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.375rem', border: 'none', marginTop: '1.5rem' },
     modalAlerta: { textAlign: 'center', paddingBottom: '1.5rem' },
     modalDescripcion: { color: '#64748B', fontSize: '0.875rem', marginTop: '1rem' },
-    botonesModal: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' },
+    botonesModalConfirm: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' },
     botonModalSecundario: { backgroundColor: '#F1F5F9', color: '#1E293B', padding: '0.75rem', borderRadius: '0.375rem', border: '1px solid #E2E8F0' },
     botonModalPrimario: { backgroundColor: '#F59E0B', color: '#FFFFFF', padding: '0.75rem', borderRadius: '0.375rem', border: 'none' }
 };

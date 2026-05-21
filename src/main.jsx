@@ -20,15 +20,32 @@ import App from './App.jsx'
 import './index.css'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { SearchProvider } from './context/SearchContext.jsx'
+import { UIFeedbackProvider } from './context/UIFeedbackContext.jsx'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+// Crear una instancia de QueryClient para TanStack Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false, // Desactivar re-petición al enfocar ventana para ahorrar API calls
+      staleTime: 5 * 60 * 1000,    // 5 minutos de validez de datos en caché
+    },
+  },
+})
 
 // Monta la aplicación en el nodo #root definido en index.html
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {/* AuthProvider: hace disponible el estado de sesión globalmente */}
-    <AuthProvider>
-      <SearchProvider>
-        <App />
-      </SearchProvider>
-    </AuthProvider>
+    {/* QueryClientProvider provee el cliente de caching de TanStack Query */}
+    <QueryClientProvider client={queryClient}>
+      {/* AuthProvider: hace disponible el estado de sesión globalmente */}
+      <AuthProvider>
+        <UIFeedbackProvider>
+          <SearchProvider>
+            <App />
+          </SearchProvider>
+        </UIFeedbackProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   </React.StrictMode>,
 )

@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { usePrestamos } from '../hooks/usePrestamos';
 import { useAuth } from '../context/AuthContext';
+import { useUIFeedback } from '../context/UIFeedbackContext';
 import EstadoBadge from '../components/ui/EstadoBadge';
 import Modal from '../components/ui/Modal';
 import { Check, X, Package, RotateCcw, AlertTriangle, MessageSquare, Info } from 'lucide-react';
@@ -14,6 +15,7 @@ import { Check, X, Package, RotateCcw, AlertTriangle, MessageSquare, Info } from
 const GestionPrestamos = () => {
     const { prestamos, loading, fetchPrestamos, actualizarEstadoPrestamo } = usePrestamos();
     const { profile } = useAuth();
+    const { showToast } = useUIFeedback();
     const [filtroEstado, setFiltroEstado] = useState('solicitado');
 
     // Modales
@@ -45,8 +47,9 @@ const GestionPrestamos = () => {
         if (res.success) {
             fetchPrestamos();
             setIsModalConfirmacionAbierto(false);
+            showToast('Entrega confirmada exitosamente.', 'success');
         } else {
-            alert(res.error);
+            showToast(res.error, 'error');
         }
         setProcesando(false);
     };
@@ -65,8 +68,9 @@ const GestionPrestamos = () => {
         if (res.success) {
             fetchPrestamos();
             setIsModalJustificacionAbierto(false);
+            showToast('Acción registrada correctamente.', 'success');
         } else {
-            alert(res.error);
+            showToast(res.error, 'error');
         }
         setProcesando(false);
     };

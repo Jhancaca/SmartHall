@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { useConfiguraciones } from '../hooks/useConfiguraciones';
 import { supabase } from '../lib/supabase';
-import { Settings, Plus, Edit2, Trash2, Save, X, Layers, Ruler, UserCheck, Activity, AlertTriangle, Tag } from 'lucide-react';
+import { Settings, Plus, Edit2, Trash2, Save, X, Layers, Ruler, UserCheck, Activity, AlertTriangle, Tag, MapPin } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 
@@ -27,10 +27,13 @@ const Configuracion = () => {
     loadInsumoCats();
   }, []);
 
+  // Eliminamos el auto-seed para evitar bloqueos por RLS sin interacción del usuario.
+
   const categorias = [
     { id: 'tipo_evento', nombre: 'Tipos de Evento', icon: Activity, desc: 'Categorías de reservas permitidas.' },
     { id: 'categoria_insumo', nombre: 'Categorías de Inventario', icon: Tag, desc: 'Clasificación de insumos y activos.' },
     { id: 'unidad_insumo', nombre: 'Unidades de Medida', icon: Ruler, desc: 'Unidades para el inventario.' },
+    { id: 'bodega_insumo', nombre: 'Bodegas / Ubicaciones', icon: MapPin, desc: 'Ubicaciones físicas para el inventario.' },
     { id: 'rol_personal', nombre: 'Roles de Personal', icon: UserCheck, desc: 'Cargos dentro de la administración.' },
     { id: 'estado_instalacion', nombre: 'Estados de Instalación', icon: Layers, desc: 'Disponibilidad de áreas.' }
   ];
@@ -138,7 +141,25 @@ const Configuracion = () => {
             
             <div style={styles.list}>
               {(cat.id === 'categoria_insumo' ? opcionesInsumo : opciones.filter(o => o.categoria === cat.id)).length === 0 ? (
-                <p style={styles.empty}>No hay opciones definidas.</p>
+                <div style={styles.emptyContainer}>
+                  <p style={styles.empty}>No hay opciones definidas.</p>
+                  {cat.id === 'bodega_insumo' && (
+                    <button 
+                      onClick={async () => {
+                        const defaults = [
+                          { categoria: 'bodega_insumo', clave: 'bodega_principal', valor: 'Bodega Principal', orden: 1, activo: true },
+                          { categoria: 'bodega_insumo', clave: 'bodega_auxiliar', valor: 'Bodega Auxiliar', orden: 2, activo: true },
+                          { categoria: 'bodega_insumo', clave: 'bodega_parqueadero', valor: 'Bodega Parqueadero', orden: 3, activo: true }
+                        ];
+                        await supabase.from('configuraciones_sistema').insert(defaults);
+                        fetchOpciones();
+                      }}
+                      style={{...styles.btnSecundario, padding: '0.5rem 1rem', fontSize: '0.8rem'}}
+                    >
+                      Cargar predeterminadas
+                    </button>
+                  )}
+                </div>
               ) : (
                 (cat.id === 'categoria_insumo' 
                   ? opcionesInsumo.map(o => ({ id: o.id, valor: o.nombre, categoria: 'categoria_insumo' })) 
@@ -270,7 +291,8 @@ const styles = {
   },
   actions: { display: 'flex', gap: '0.5rem' },
   actionBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)' },
-  empty: { textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem', padding: '1rem 0' },
+  emptyContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', padding: '1rem 0' },
+  empty: { textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 },
   modalContent: { padding: '1rem' },
   modalTitle: { fontSize: '1.5rem', fontWeight: '700', marginBottom: '1.5rem', color: '#1E293B' },
   formGroup: { marginBottom: '1.25rem' },

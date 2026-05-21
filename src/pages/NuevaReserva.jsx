@@ -30,7 +30,14 @@ const NuevaReserva = () => {
         fetchOpciones('tipo_evento');
     }, []);
 
-    const tiposEvento = getOpcionesPorCategoria('tipo_evento');
+    const tiposEvento = getOpcionesPorCategoria('tipo_evento').length > 0
+        ? getOpcionesPorCategoria('tipo_evento')
+        : [
+            { id: 't1', valor: 'Fiesta Infantil' },
+            { id: 't2', valor: 'Reunión Social' },
+            { id: 't3', valor: 'Asamblea de Copropietarios' },
+            { id: 't4', valor: 'Otro' }
+        ];
 
     const [formData, setFormData] = useState({
         residente_id: '', // Se inicializa vacío para obligar a seleccionar o usar el actual

@@ -10,13 +10,16 @@
  *  4. Proveer el acceso directo al cierre de sesión (signOut).
  */
 
-import { LogOut, Bell, HelpCircle, Search as SearchIcon } from 'lucide-react';
+import { LogOut, Bell, HelpCircle, Search as SearchIcon, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSearch } from '../../context/SearchContext';
 import NotificationCenter from '../ui/NotificationCenter';
 
-const Header = () => {
+/**
+ * @param {Function} onToggleMobileMenu - Callback para abrir/cerrar sidebar en mobile
+ */
+const Header = ({ onToggleMobileMenu }) => {
   const { profile, signOut } = useAuth();
   const { globalQuery, setGlobalQuery } = useSearch();
   const navigate = useNavigate();
@@ -45,6 +48,16 @@ const Header = () => {
 
   return (
     <header style={styles.header}>
+      {/* Botón hamburguesa para mobile */}
+      <button
+        onClick={onToggleMobileMenu}
+        style={styles.hamburgerButton}
+        title="Abrir menú"
+        className="mobile-only"
+      >
+        <Menu size={22} />
+      </button>
+
       {/* Sección de Búsqueda */}
       <div style={styles.searchContainer}>
         <div style={styles.searchWrapper}>
@@ -188,7 +201,33 @@ const styles = {
     gap: '0.5rem',
     transition: 'all 0.2s',
     boxShadow: '0 2px 4px rgba(239, 68, 68, 0.05)',
-  }
+  },
+  hamburgerButton: {
+    display: 'none', // Se muestra solo en mobile via CSS
+    color: 'var(--text)',
+    padding: '0.5rem',
+    borderRadius: 'var(--radius-sm)',
+    transition: 'all var(--transition-fast)',
+  },
 };
+
+/**
+ * Inyectar CSS responsive para el botón hamburguesa.
+ * Solo visible en pantallas ≤768px.
+ */
+const headerResponsiveStyles = document.createElement('style');
+headerResponsiveStyles.textContent = `
+  @media (max-width: 768px) {
+    .mobile-only {
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+`;
+if (!document.querySelector('[data-sh-header-responsive]')) {
+  headerResponsiveStyles.setAttribute('data-sh-header-responsive', '');
+  document.head.appendChild(headerResponsiveStyles);
+}
 
 export default Header;

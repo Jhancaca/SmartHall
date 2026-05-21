@@ -15,12 +15,13 @@
  */
 
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 const Modal = ({ isOpen, onClose, title, children }) => {
   // Si no está abierto, no renderiza nada
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div style={styles.overlay} onClick={onClose}>
       {/* Evitamos que el clic dentro del modal cierre la ventana propagando hacia el overlay */}
       <div 
@@ -43,6 +44,8 @@ const Modal = ({ isOpen, onClose, title, children }) => {
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 // Estilos específicos para el Modal
@@ -54,7 +57,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 50,
+    zIndex: 9999, // Asegurar que esté por encima de todo
     backdropFilter: 'blur(4px)', // Desenfoque moderno
   },
   modal: {

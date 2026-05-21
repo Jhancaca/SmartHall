@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { useInventario } from '../hooks/useInventario';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
+import { useUIFeedback } from '../context/UIFeedbackContext';
 import { useConfiguraciones } from '../hooks/useConfiguraciones';
 import Table from '../components/ui/Table';
 import Badge from '../components/ui/Badge';
@@ -16,15 +17,35 @@ import { Plus, Edit2, AlertTriangle, Package, MapPin, Tag, CheckCircle, Search }
 
 const Inventario = () => {
   const { insumos, categorias, loading, fetchInsumos, fetchCategorias, createInsumo, updateInsumo } = useInventario();
+  const { showToast } = useUIFeedback();
   const { profile } = useAuth();
   const { globalQuery } = useSearch();
   const { fetchOpciones, getOpcionesPorCategoria } = useConfiguraciones();
   
   useEffect(() => {
     fetchOpciones('unidad_insumo');
+    fetchOpciones('bodega_insumo');
   }, []);
 
-  const unidadesMedida = getOpcionesPorCategoria('unidad_insumo');
+  const unidadesMedida = getOpcionesPorCategoria('unidad_insumo').length > 0
+    ? getOpcionesPorCategoria('unidad_insumo')
+    : [
+        { id: 'u1', clave: 'unidad', valor: 'Unidad' },
+        { id: 'u2', clave: 'caja', valor: 'Caja' },
+        { id: 'u3', clave: 'kg', valor: 'Kilogramo' },
+        { id: 'u4', clave: 'litro', valor: 'Litro' },
+        { id: 'u5', clave: 'metro', valor: 'Metro' },
+        { id: 'u6', clave: 'par', valor: 'Par' },
+        { id: 'u7', clave: 'set', valor: 'Set' }
+      ];
+
+  const bodegasFisicas = getOpcionesPorCategoria('bodega_insumo').length > 0
+    ? getOpcionesPorCategoria('bodega_insumo')
+    : [
+        { id: 'b1', clave: 'bodega_principal', valor: 'Bodega Principal' },
+        { id: 'b2', clave: 'bodega_auxiliar', valor: 'Bodega Auxiliar' },
+        { id: 'b3', clave: 'bodega_parqueadero', valor: 'Bodega Parqueadero' }
+      ];
   
   const isAdmin = profile?.rol === 'administrador';
   const isSupervisor = profile?.rol === 'supervisor';
@@ -43,7 +64,7 @@ const Inventario = () => {
   const [formData, setFormData] = useState({
     nombre: '', categoria_id: '', descripcion: '', unidad: 'unidad',
     cantidad_total: 0, cantidad_disponible: 0, cantidad_minima: 0,
-    ubicacion: '', estado: 'disponible', codigo_interno: ''
+    ubicacion: 'Bodega Principal', estado: 'disponible', codigo_interno: ''
   });
 
   const handleAbrirRetorno = (insumo) => {
@@ -103,7 +124,7 @@ const Inventario = () => {
       setFormData({
         nombre: '', categoria_id: categorias[0]?.id || '', descripcion: '', unidad: 'unidad',
         cantidad_total: 0, cantidad_disponible: 0, cantidad_minima: 5,
-        ubicacion: '', estado: 'disponible', codigo_interno: ''
+        ubicacion: 'Bodega Principal', estado: 'disponible', codigo_interno: ''
       });
     }
     setIsModalOpen(true);
@@ -111,12 +132,28 @@ const Inventario = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    
+    // Limpiar campos de texto vacíos a null para evitar violaciones de clave única/restricciones
+    const payload = {
+      ...formData,
+      codigo_interno: formData.codigo_interno.trim() || null,
+      descripcion: formData.descripcion.trim() || null,
+      ubicacion: formData.ubicacion.trim() || null,
+    };
+
+    let result;
     if (insumoEditando) {
-      await updateInsumo(insumoEditando.id, formData);
+      result = await updateInsumo(insumoEditando.id, payload);
     } else {
-      await createInsumo(formData);
+      result = await createInsumo(payload);
     }
-    setIsModalOpen(false);
+
+    if (result && !result.success) {
+      showToast(`Error al guardar insumo: ${result.error}`, 'error');
+    } else {
+      showToast(insumoEditando ? 'Insumo actualizado correctamente.' : 'Insumo creado correctamente.', 'success');
+      setIsModalOpen(false);
+    }
   };
 
   const columns = [
@@ -240,13 +277,13 @@ const Inventario = () => {
           onClose={() => setIsModalOpen(false)} 
           title={insumoEditando ? 'Actualizar Información Técnica' : 'Nuevo Registro de Insumo'}
         >
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <div className="input-group" style={{ flex: 1, margin: 0 }}>
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '0.5rem 0' }}>
+            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+              <div className="input-group" style={{ flex: '1 1 200px', margin: 0 }}>
                 <label>Nombre Comercial / Descriptivo</label>
                 <input type="text" className="input-control" required placeholder="Ej: Sillas Plásticas Blancas" value={formData.nombre} onChange={e => setFormData({...formData, nombre: e.target.value})} />
               </div>
-              <div className="input-group" style={{ width: '150px', margin: 0 }}>
+              <div className="input-group" style={{ flex: '0 1 150px', margin: 0 }}>
                 <label>ID / SKU</label>
                 <input type="text" className="input-control" placeholder="ABC-001" value={formData.codigo_interno} onChange={e => setFormData({...formData, codigo_interno: e.target.value})} />
               </div>
@@ -257,8 +294,8 @@ const Inventario = () => {
               <textarea className="input-control" placeholder="Detalles de marca, modelo o estado..." value={formData.descripcion} onChange={e => setFormData({...formData, descripcion: e.target.value})} rows={2}></textarea>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
-               <div className="input-group" style={{ flex: 1, margin: 0 }}>
+            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+               <div className="input-group" style={{ flex: '1 1 200px', margin: 0 }}>
                 <label>Categoría</label>
                 <select className="input-control" required value={formData.categoria_id} onChange={e => setFormData({...formData, categoria_id: e.target.value})}>
                   <option value="">Selecciona una...</option>
@@ -267,7 +304,7 @@ const Inventario = () => {
                   ))}
                 </select>
               </div>
-              <div className="input-group" style={{ flex: 1, margin: 0 }}>
+              <div className="input-group" style={{ flex: '1 1 200px', margin: 0 }}>
                 <label>Estado Actual</label>
                 <select className="input-control" required value={formData.estado} onChange={e => setFormData({...formData, estado: e.target.value})}>
                   <option value="disponible">Disponible para Reserva</option>
@@ -278,23 +315,23 @@ const Inventario = () => {
               </div>
             </div>
 
-            <div style={styles.countsBox}>
-              <div className="input-group" style={{ flex: 1, margin: 0 }}>
+            <div style={{...styles.countsBox, gap: '1.5rem', flexWrap: 'wrap'}}>
+              <div className="input-group" style={{ flex: '1 1 100px', margin: 0 }}>
                 <label>Stock Total</label>
                 <input type="number" className="input-control" required min="0" value={formData.cantidad_total} onChange={e => setFormData({...formData, cantidad_total: parseInt(e.target.value)})} />
               </div>
-              <div className="input-group" style={{ flex: 1, margin: 0 }}>
+              <div className="input-group" style={{ flex: '1 1 100px', margin: 0 }}>
                 <label>Disponible</label>
                 <input type="number" className="input-control" required min="0" value={formData.cantidad_disponible} onChange={e => setFormData({...formData, cantidad_disponible: parseInt(e.target.value)})} />
               </div>
-              <div className="input-group" style={{ flex: 1, margin: 0 }}>
+              <div className="input-group" style={{ flex: '1 1 100px', margin: 0 }}>
                 <label>Mín. Seguro</label>
                 <input type="number" className="input-control" required min="0" value={formData.cantidad_minima} onChange={e => setFormData({...formData, cantidad_minima: parseInt(e.target.value)})} />
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <div className="input-group" style={{ flex: 1, margin: 0 }}>
+            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+              <div className="input-group" style={{ flex: '1 1 200px', margin: 0 }}>
                 <label>Unidad de Medida</label>
                 <select className="input-control" required value={formData.unidad} onChange={e => setFormData({...formData, unidad: e.target.value})}>
                   <option value="">Selecciona unidad...</option>
@@ -303,9 +340,14 @@ const Inventario = () => {
                   ))}
                 </select>
               </div>
-              <div className="input-group" style={{ flex: 1.5, margin: 0 }}>
+              <div className="input-group" style={{ flex: '1 1 200px', margin: 0 }}>
                 <label>Ubicación Física</label>
-                <input type="text" className="input-control" placeholder="Ej: Bodega Central A-1" value={formData.ubicacion} onChange={e => setFormData({...formData, ubicacion: e.target.value})} />
+                <select className="input-control" required value={formData.ubicacion} onChange={e => setFormData({...formData, ubicacion: e.target.value})}>
+                  <option value="">Selecciona bodega...</option>
+                  {bodegasFisicas.map(b => (
+                    <option key={b.id} value={b.valor}>{b.valor}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
