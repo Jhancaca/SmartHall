@@ -131,17 +131,17 @@ const Informes = () => {
       if (filtroTexto.trim()) {
         const q = filtroTexto.toLowerCase();
         if (tipoReporte === 'reservas') {
-          const nombres = `${item.usuarios?.nombres} ${item.usuarios?.apellidos}`.toLowerCase();
-          const apto = (item.usuarios?.numero_apto || '').toLowerCase();
+        const nombres = `${item.usuarios?.nombres || ''} ${item.usuarios?.apellidos || ''}`.toLowerCase();
+        const apto = (item.usuarios?.numero_apto || '').toLowerCase();
           const evento = (item.tipo_evento || '').toLowerCase();
           return nombres.includes(q) || apto.includes(q) || evento.includes(q);
         } else if (tipoReporte === 'prestamos') {
-          const nombres = `${item.reservas?.usuarios?.nombres} ${item.reservas?.usuarios?.apellidos}`.toLowerCase();
+          const nombres = `${item.reservas?.usuarios?.nombres || ''} ${item.reservas?.usuarios?.apellidos || ''}`.toLowerCase();
           const apto = (item.reservas?.usuarios?.numero_apto || '').toLowerCase();
           const insumo = (item.insumos?.nombre || '').toLowerCase();
           return nombres.includes(q) || apto.includes(q) || insumo.includes(q);
         } else if (tipoReporte === 'auditoria') {
-          const nombres = `${item.usuarios?.nombres} ${item.usuarios?.apellidos}`.toLowerCase();
+        const nombres = `${item.usuarios?.nombres || ''} ${item.usuarios?.apellidos || ''}`.toLowerCase();
           const entidad = (item.entidad || '').toLowerCase();
           const accion = (item.accion || '').toLowerCase();
           const detalles = (typeof item.detalles === 'string' ? item.detalles : JSON.stringify(item.detalles)).toLowerCase();
@@ -161,13 +161,15 @@ const Informes = () => {
     {
       id: 'residente',
       header: 'Residente / Apto',
-      accessorFn: row => `${row.revisado_por_user?.nombres} ${row.revisado_por_user?.apellidos}`,
+      accessorFn: row => `${row.usuarios?.nombres} ${row.usuarios?.apellidos}`,
       cell: info => {
         const row = info.row.original;
+        const nombres = row.usuarios?.nombres || '';
+        const apellidos = row.usuarios?.apellidos || '';
         return (
           <div style={styles.celdaDobleLine}>
-            <span style={styles.lineaPrincipal}>{row.revisado_por_user?.nombres} {row.revisado_por_user?.apellidos}</span>
-            <span style={styles.lineaSecundaria}>Apto {row.revisado_por_user?.numero_apto || 'N/A'}</span>
+            <span style={styles.lineaPrincipal}>{nombres} {apellidos}</span>
+            <span style={styles.lineaSecundaria}>Apto {row.usuarios?.numero_apto || 'N/A'}</span>
           </div>
         );
       }
@@ -217,6 +219,9 @@ const Informes = () => {
       header: 'Revisado Por',
       cell: info => {
         const row = info.row.original;
+        // Prefer mostrar al revisor (revisado_por_user) cuando exista, sino mostrar el solicitante (usuarios)
+        const revisor = row.revisado_por_user;
+        if (revisor) return `${revisor.nombres} ${revisor.apellidos}`;
         return row.usuarios ? `${row.usuarios.nombres} ${row.usuarios.apellidos}` : '-';
       }
     }

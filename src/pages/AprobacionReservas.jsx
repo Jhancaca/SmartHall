@@ -121,8 +121,8 @@ const AprobacionReservas = () => {
     if (!filtroTexto.trim()) return reservasPendientesRaw;
     const query = filtroTexto.toLowerCase();
     return reservasPendientesRaw.filter(r => {
-      const nombre = `${r.usuarios?.nombres} ${r.usuarios?.apellidos}`.toLowerCase();
-      const apto = (r.usuarios?.numero_apto || '').toLowerCase();
+      const nombre = `${r.usuarios?.nombres || ''} ${r.usuarios?.apellidos || ''}`.toLowerCase();
+    const apto = (r.usuarios?.numero_apto || '').toLowerCase();
       const tipo = (r.tipo_evento || '').toLowerCase();
       return nombre.includes(query) || apto.includes(query) || tipo.includes(query);
     });
@@ -156,17 +156,19 @@ const AprobacionReservas = () => {
     {
       id: 'residente',
       header: 'Residente / Apto',
-      accessorFn: row => `${row.revisado_por_user?.nombres} ${row.revisado_por_user?.apellidos}`,
+      accessorFn: row => `${row.usuarios?.nombres} ${row.usuarios?.apellidos}`,
       cell: info => {
         const row = info.row.original;
+        const nombres = row.usuarios?.nombres || '';
+        const apellidos = row.usuarios?.apellidos || '';
         return (
           <div style={styles.residenteCelda}>
             <div style={styles.avatar}>
-              {row.revisado_por_user?.nombres?.charAt(0)}{row.revisado_por_user?.apellidos?.charAt(0)}
+              {nombres?.charAt(0) || apellidos?.charAt(0)}{apellidos?.charAt(0) || ''}
             </div>
             <div>
-              <div style={styles.nombre}>{row.revisado_por_user?.nombres} {row.revisado_por_user?.apellidos}</div>
-              <div style={styles.apto}>Apto {row.revisado_por_user?.numero_apto || 'N/A'}</div>
+              <div style={styles.nombre}>{nombres} {apellidos}</div>
+              <div style={styles.apto}>Apto {row.usuarios?.numero_apto || 'N/A'}</div>
             </div>
           </div>
         );
