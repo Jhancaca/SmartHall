@@ -27,3 +27,10 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Ignore agents folder (local agent configs)
+.agents/
+agents/
+
+# Ignore generated docx files
+*.docx
