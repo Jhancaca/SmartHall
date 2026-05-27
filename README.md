@@ -62,14 +62,8 @@ VITE_SUPABASE_URL=tu_supabase_project_url
 VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
 ```
 
-### 3. Base de Datos (Migraciones)
-Los scripts SQL que estructuran el proyecto se encuentran en el directorio `bd/migraciones/`. Deberás ejecutarlos en el panel SQLEditor de tu proyecto Supabase (en el siguiente orden lógico recomendado):
-1. `supabase_schema.sql` (Perfiles y Usuarios).
-2. `supabase_schema_reservas.sql` (Esquema de Reservas y Disponibilidad).
-3. `schema_prestamos.sql` (Esquema del flujo de inventario).
-4. `fix_rls_final.sql` y complementos (Triggers, RLS y notificaciones).
 
-### 4. Lanzamiento del entorno de desarrollo
+### 3. Lanzamiento del entorno de desarrollo
 ```bash
 npm run dev
 ```
