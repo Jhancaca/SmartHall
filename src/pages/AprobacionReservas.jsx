@@ -617,6 +617,11 @@ const AprobacionReservas = () => {
               </div>
 
               <div style={styles.detalleItem}>
+                <span style={styles.detalleLabel}>Teléfono:</span>
+                <span style={styles.detalleValor}>{reservaSeleccionada.usuarios?.telefono || 'No registrado'}</span>
+              </div>
+
+              <div style={styles.detalleItem}>
                 <span style={styles.detalleLabel}>Fecha del Evento:</span>
                 <span style={styles.detalleValor}>
                   {new Date(reservaSeleccionada.fecha_evento + 'T12:00:00').toLocaleDateString('es-ES', {

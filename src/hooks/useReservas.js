@@ -460,13 +460,10 @@ export const useReservas = (residenteId = null, filtroEstado = null) => {
     obtenerReservasEsteMes,
     obtenerEstadisticasMensuales,
     deleteReserva: async (id) => {
-      // Soft-delete: nunca eliminamos registros físicamente (regla global)
+      // Eliminar registro de la base de datos realmente
       const { error: err } = await supabase
         .from('reservas')
-        .update({
-          estado: 'eliminada',
-          motivo_rechazo: 'Eliminada por administrador'
-        })
+        .delete()
         .eq('id', id);
       if (!err) {
         queryClient.invalidateQueries({ queryKey: ['reservas'] });

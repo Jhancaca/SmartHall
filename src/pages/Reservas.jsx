@@ -440,6 +440,7 @@ const Reservas = () => {
                         <h2 style={styles.modalTitulo}>Detalle de Reserva</h2>
                         <div style={styles.detalleItem}><span style={styles.detalleLabel}>Residente:</span><span style={styles.detalleValor}>{reservaSeleccionada.usuarios?.nombres} {reservaSeleccionada.usuarios?.apellidos}</span></div>
                         <div style={styles.detalleItem}><span style={styles.detalleLabel}>Apartamento:</span><span style={styles.detalleValor}>{reservaSeleccionada.usuarios?.numero_apto}</span></div>
+                        <div style={styles.detalleItem}><span style={styles.detalleLabel}>Teléfono:</span><span style={styles.detalleValor}>{reservaSeleccionada.usuarios?.telefono || 'No registrado'}</span></div>
                         <div style={styles.detalleItem}><span style={styles.detalleLabel}>Fecha:</span><span style={styles.detalleValor}>{formatearFecha(reservaSeleccionada.fecha_evento)}</span></div>
                         <div style={styles.detalleItem}><span style={styles.detalleLabel}>Horario:</span><span style={styles.detalleValor}>{reservaSeleccionada.hora_inicio} - {reservaSeleccionada.hora_fin}</span></div>
                         <div style={styles.detalleItem}><span style={styles.detalleLabel}>Invitados:</span><span style={styles.detalleValor}>{reservaSeleccionada.numero_invitados}</span></div>
