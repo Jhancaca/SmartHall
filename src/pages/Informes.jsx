@@ -44,27 +44,70 @@ import {
   ChevronRight
 } from 'lucide-react';
 
+/**
+ * Componente Informes - Centro de Informes y Reportes Analíticos.
+ *
+ * Página exclusiva para administradores y supervisores que permite visualizar,
+ * filtrar y exportar datos críticos sobre reservas, préstamos de insumos y auditoría.
+ *
+ * Hooks utilizados:
+ *  - useAuth: obtiene el perfil del usuario autenticado para control de acceso por rol.
+ *  - useUIFeedback: provee showToast para notificaciones al usuario.
+ *  - useReservas: carga y gestiona la lista de reservas del sistema.
+ *  - usePrestamos: carga y gestiona la lista de préstamos de insumos.
+ *  - useAuditoria: carga y gestiona los logs de auditoría del sistema.
+ *  - useReactTable (TanStack Table): maneja ordenamiento, paginación y renderizado de la tabla.
+ *
+ * Renderiza:
+ *  - Cabecera con selector de tipo de reporte (pestañas).
+ *  - Panel de filtros (fechas, estado/acción, búsqueda de texto).
+ *  - Tabla de datos con columnas dinámicas según el reporte seleccionado.
+ *  - Controles de paginación.
+ *  - Botones de exportación CSV e impresión/PDF.
+ *
+ * @returns {JSX.Element} El componente renderizado del Centro de Informes.
+ */
 const Informes = () => {
+  /** @type {{ rol: string, ... }} Perfil del usuario autenticado, usado para validar acceso */
   const { profile } = useAuth();
+  /** @type {{ showToast: (msg: string, type: string) => void }} Función para mostrar notificaciones */
   const { showToast } = useUIFeedback();
   
-  // Hooks de datos
+  // Hooks de datos - cada uno provee la lista, estado de carga y función de recarga
   const { reservas, loading: loadingReservas, fetchReservas } = useReservas();
   const { prestamos, loading: loadingPrestamos, fetchPrestamos } = usePrestamos();
   const { logs, loading: loadingAuditoria, fetchLogs } = useAuditoria();
 
-  // Estados del Centro de Reportes
-  const [tipoReporte, setTipoReporte] = useState('reservas'); // 'reservas', 'prestamos', 'auditoria'
+  // ─── Estados del Centro de Reportes ───
+  /** @type {[string, Function]} Tipo de reporte activo: 'reservas' | 'prestamos' | 'auditoria' */
+  const [tipoReporte, setTipoReporte] = useState('reservas');
+  /** @type {[string, Function]} Texto de búsqueda global para filtrar registros */
   const [filtroTexto, setFiltroTexto] = useState('');
+  /** @type {[string, Function]} Fecha de inicio del rango de filtrado (formato YYYY-MM-DD) */
   const [fechaDesde, setFechaDesde] = useState('');
+  /** @type {[string, Function]} Fecha de fin del rango de filtrado (formato YYYY-MM-DD) */
   const [fechaHasta, setFechaHasta] = useState('');
-  const [filtroExtra, setFiltroExtra] = useState('todos'); // Reservas: 'todos', 'aprobada', 'pendiente', etc. Prestamos: 'todos', 'entregado', 'devuelto', etc.
+  /**
+   * @type {[string, Function]} Filtro extra dinámico según el reporte:
+   *  - reservas: 'todos' | 'aprobada' | 'pendiente' | 'rechazada' | 'cancelada'
+   *  - prestamos: 'todos' | 'entregado' | 'devuelto' | 'danado' | 'solicitado' | 'rechazado'
+   *  - auditoria: 'todos' | 'CREAR' | 'EDITAR' | 'ELIMINAR' | 'APROBAR' | 'RECHAZAR'
+   */
+  const [filtroExtra, setFiltroExtra] = useState('todos');
 
-  // Ordenamiento y Paginación de Tabla
+  // ─── Ordenamiento y Paginación de Tabla (TanStack Table) ───
+  /** @type {[Array<{id: string, desc: boolean}>, Function]} Configuración de ordenamiento de columnas */
   const [sorting, setSorting] = useState([{ id: 'fecha_evento', desc: true }]);
+  /** @type {[{pageIndex: number, pageSize: number}, Function]} Estado de paginación de la tabla */
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
 
-  // Sincronizar el reporte y su ordenamiento para evitar desajustes y warnings de TanStack Table
+  /**
+   * Maneja el cambio de tipo de reporte activo.
+   * Resetea la paginación a la primera página y configura el ordenamiento por defecto
+   * según el tipo de reporte seleccionado para evitar desajustes con TanStack Table.
+   *
+   * @param {'reservas'|'prestamos'|'auditoria'} nuevoTipo - El nuevo tipo de reporte a mostrar.
+   */
   const handleCambiarReporte = (nuevoTipo) => {
     setTipoReporte(nuevoTipo);
     if (nuevoTipo === 'reservas') {
@@ -77,11 +120,18 @@ const Informes = () => {
     setPagination({ pageIndex: 0, pageSize: 10 });
   };
 
-  // Cargar datos al cambiar de pestaña
+  // Cargar datos al cambiar de pestaña - se ejecuta cuando tipoReporte cambia
   useEffect(() => {
     cargarDatos();
   }, [tipoReporte]);
 
+  /**
+   * Carga los datos del reporte según el tipo seleccionado.
+   * Limpia los filtros de texto y extra antes de cargar.
+   * Llama a la función de obtención correspondiente del hook de datos.
+   *
+   * @returns {Promise<void>}
+   */
   const cargarDatos = async () => {
     setFiltroTexto('');
     setFiltroExtra('todos');
@@ -98,7 +148,18 @@ const Informes = () => {
   // 1. Filtrado de Datos para cada Reporte
   // ────────────────────────────────────────────────────────
 
+  /**
+   * Datos filtrados según los criterios activos (fechas, estado/acción, búsqueda de texto).
+   * Se recalcula useMemo cuando cambia cualquier parámetro de filtrado o los datos fuente.
+   * Aplica tres niveles de filtrado en secuencia:
+   *  1. Filtros de rango de fecha (desde/hasta) según el tipo de reporte.
+   *  2. Filtro extra por estado o categoría de acción.
+   *  3. Búsqueda global por texto en campos relevantes de cada reporte.
+   *
+   * @returns {Array} Arreglo de objetos filtrados listos para la tabla.
+   */
   const datosFiltrados = useMemo(() => {
+    // Seleccionar la fuente de datos cruda según el tipo de reporte activo
     let rawData = [];
     if (tipoReporte === 'reservas') rawData = Array.isArray(reservas) ? reservas : [];
     else if (tipoReporte === 'prestamos') rawData = Array.isArray(prestamos) ? prestamos : [];
@@ -157,6 +218,12 @@ const Informes = () => {
   // 2. Definición de Columnas de TanStack Table
   // ────────────────────────────────────────────────────────
 
+  /**
+   * Definición de columnas para el reporte de Reservas.
+   * Cada columna incluye: id, accessorKey o accessorFn, header (con botón de ordenamiento si aplica),
+   * y cell para renderizado personalizado.
+   * Columnas: Residente/Apto, Fecha Evento (ordenable), Horario, Evento, Invitados, Estado, Revisor.
+   */
   const columnasReservas = useMemo(() => [
     {
       id: 'residente',
@@ -227,6 +294,11 @@ const Informes = () => {
     }
   ], []);
 
+  /**
+   * Definición de columnas para el reporte de Préstamos de Insumos.
+   * Columnas: Insumo, Cantidad, Asociado A (residente), Fecha Préstamo (ordenable),
+   * Fecha Devolución, Estado (con badge de color), Observaciones.
+   */
   const columnasPrestamos = useMemo(() => [
     {
       id: 'insumo',
@@ -294,6 +366,11 @@ const Informes = () => {
     }
   ], []);
 
+  /**
+   * Definición de columnas para el reporte de Auditoría.
+   * Columnas: Fecha/Hora (ordenable, con formato doble línea), Usuario, Acción (con badge),
+   * Módulo, Detalle Acción (con serialización JSON si es objeto).
+   */
   const columnasAuditoria = useMemo(() => [
     {
       id: 'created_at',
@@ -345,14 +422,20 @@ const Informes = () => {
     }
   ], []);
 
-  // Determinar columnas activas
+  /** @type {Array} Columnas activas según el tipo de reporte seleccionado */
   const columnasActivas = useMemo(() => {
     if (tipoReporte === 'reservas') return columnasReservas;
     if (tipoReporte === 'prestamos') return columnasPrestamos;
     return columnasAuditoria;
   }, [tipoReporte, columnasReservas, columnasPrestamos, columnasAuditoria]);
 
-  // Hook de TanStack Table
+  /**
+   * Instancia de TanStack Table configurada con:
+   *  - data: datos filtrados para el reporte actual.
+   *  - columns: definición de columnas dinámicas.
+   *  - state: sorting y pagination controlados por React.
+   *  - Modelos: core, sorted y paginated para renderizado, ordenamiento y paginación.
+   */
   const table = useReactTable({
     data: datosFiltrados,
     columns: columnasActivas,
@@ -364,6 +447,7 @@ const Informes = () => {
     getPaginationRowModel: getPaginationRowModel()
   });
 
+  /** @type {boolean} Estado de carga combinado según el reporte activo */
   const loading = tipoReporte === 'reservas' ? loadingReservas :
                   tipoReporte === 'prestamos' ? loadingPrestamos : loadingAuditoria;
 
@@ -371,7 +455,16 @@ const Informes = () => {
   // 3. Exportar a CSV Premium (con BOM UTF-8)
   // ────────────────────────────────────────────────────────
   
+  /**
+   * Exporta los datos filtrados del reporte activo a un archivo CSV con BOM UTF-8.
+   * Genera encabezados y filas específicas según el tipo de reporte (reservas, préstamos, auditoría).
+   * Utiliza Blob con BOM para garantizar compatibilidad de acentos y caracteres especiales en Excel.
+   * Descarga el archivo con nombre incluyendo tipo de reporte y fecha actual.
+   *
+   * @returns {void} No retorna valor; genera descarga de archivo CSV.
+   */
   const exportarCSV = () => {
+    // Validar que hay datos para exportar
     if (datosFiltrados.length === 0) {
       showToast('No hay datos disponibles en el reporte actual para exportar.', 'warning');
       return;
@@ -380,6 +473,7 @@ const Informes = () => {
     let headers = [];
     let rows = [];
 
+    // Generar encabezados y filas según el tipo de reporte activo
     if (tipoReporte === 'reservas') {
       headers = ['Residente', 'Apartamento', 'Fecha Evento', 'Hora Inicio', 'Hora Fin', 'Evento', 'Invitados', 'Estado', 'Revisor'];
       rows = datosFiltrados.map(r => [
@@ -417,6 +511,7 @@ const Informes = () => {
       ]);
     }
 
+    // Ensamblar el contenido CSV: encabezados + filas separadas por saltos de línea
     const csvContent = [
       headers.join(','),
       ...rows.map(e => e.join(','))
@@ -436,11 +531,19 @@ const Informes = () => {
   // ────────────────────────────────────────────────────────
   // 4. Imprimir / Generar PDF
   // ────────────────────────────────────────────────────────
+  /**
+   * Abre el diálogo de impresión del navegador para generar un PDF o imprimir el reporte.
+   * Los estilos CSS @media print definen qué elementos son visibles en la impresión.
+   *
+   * @returns {void}
+   */
   const imprimirReporte = () => {
     window.print();
   };
 
-  // Evitar acceso a residentes
+  // ─── Control de Acceso por Rol ───
+  // Solo los roles 'administrador' y 'supervisor' pueden acceder al Centro de Informes.
+  // Si el usuario no tiene uno de estos roles, se muestra un mensaje de acceso restringido.
   if (!['administrador', 'supervisor'].includes(profile?.rol)) {
     return (
       <div style={styles.accesoNegadoContainer}>
@@ -453,9 +556,10 @@ const Informes = () => {
     );
   }
 
+  // ─── Renderizado Principal ───
   return (
     <div className="fade-in" style={styles.container}>
-      {/* CSS Inyectado para Impresión Impecable */}
+      {/* Estilos CSS inyectados para impresión: ocultan elementos de UI y ajustan tabla al formato de papel */}
       <style>{`
         @media print {
           body {
@@ -499,7 +603,7 @@ const Informes = () => {
         }
       `}</style>
 
-      {/* Cabecera Invisible en Pantalla pero Visible en Impresión */}
+      {/* Cabecera de impresión: visible solo en impresión/PDF, oculta en pantalla (display: none en styles.printHeader) */}
       <div className="print-header" style={styles.printHeader}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
@@ -513,7 +617,7 @@ const Informes = () => {
         </div>
       </div>
 
-      {/* Cabecera Principal */}
+      {/* Cabecera Principal: título del Centro de Informes y selector de pestañas de reporte */}
       <header className="no-print" style={styles.header}>
         <div>
           <h1 style={styles.titulo}>Centro de Informes</h1>
@@ -555,7 +659,7 @@ const Informes = () => {
         </div>
       </header>
 
-      {/* Panel de Filtros Premium */}
+      {/* Panel de Filtros: controles de filtrado por fecha, estado/acción, búsqueda y botones de acción */}
       <section className="no-print" style={styles.filtrosCard}>
         <div style={styles.filtrosGrid}>
           {/* Rango de Fechas */}
@@ -645,7 +749,7 @@ const Informes = () => {
             </div>
           </div>
 
-          {/* Botones de Descarga e Impresión */}
+          {/* Botón de reset: limpia todos los filtros y recarga los datos */}
           <div style={styles.accionesReporte}>
             <button onClick={exportarCSV} className="btn-csv-export" title="Descargar Excel/CSV">
               <FileSpreadsheet size={18} />
@@ -672,7 +776,7 @@ const Informes = () => {
         </div>
       </section>
 
-      {/* Visualización de Datos / Caja de Tabla */}
+      {/* Sección principal de datos: muestra spinner, mensaje vacío o tabla con paginación */}
       <main className="print-container" style={styles.tablaCard}>
         {loading ? (
           <div style={styles.cargandoContenedor}>
@@ -687,6 +791,7 @@ const Informes = () => {
           </div>
         ) : (
           <>
+            {/* Tabla renderizada con TanStack Table: headers y rows dinámicos */}
             <div style={styles.tablaWrapper}>
               <table className="print-table" style={styles.tabla}>
                 <thead>
@@ -759,6 +864,12 @@ const Informes = () => {
   );
 };
 
+/**
+ * Objeto de estilos CSS-in-JS para el componente Informes.
+ * Contiene estilos para: contenedor, cabecera, pestañas, filtros, tabla,
+ * paginación, estados de carga, resultado vacío y acceso denegado.
+ * Se aplica inline para mantener coherencia con el resto de la aplicación.
+ */
 const styles = {
   container: {
     padding: '2rem',

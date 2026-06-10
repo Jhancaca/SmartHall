@@ -2,11 +2,49 @@
 -- EXTENSIÓN DE SCHEMA PARA RESERVAS
 -- Entrega 2 - SmartHall
 -- ==========================================
+-- Esta migración crea la tabla de reservas del salón social junto con
+-- el enumerador de estados, índices de rendimiento, políticas de RLS,
+-- una función RPC para verificar disponibilidad y un trigger para
+-- actualizar el timestamp automáticamente.
+--
+-- CUÁNDO EJECUTAR: Después de que las tablas base (usuarios, perfiles)
+-- y la función get_user_role hayan sido creadas.
+-- ==========================================
 
--- 1. ENUMERADORES NUEVOS
+-- ==========================================
+-- ENUMERADOR: estado_reserva
+-- ==========================================
+-- Define los estados posibles de una reserva:
+-- 'pendiente': Reserva creada, esperando aprobación del administrador.
+-- 'aprobada': Reserva aprobada, el evento puede realizarse.
+-- 'rechazada': Reserva rechazada por el administrador.
+-- 'cancelada': Reserva cancelada por el residente o el administrador.
+-- ==========================================
 CREATE TYPE estado_reserva AS ENUM ('pendiente', 'aprobada', 'rechazada', 'cancelada');
 
--- 2. TABLA DE RESERVAS
+-- ==========================================
+-- TABLA: reservas
+-- ==========================================
+-- Almacena las reservas del salón social realizadas por los residentes.
+-- Cada reserva representa una solicitud para utilizar el salón en una fecha
+-- y hora específica, con un tipo de evento y número de invitados.
+--
+-- CAMPOS:
+-- id: Identificador único de la reserva (UUID generado automáticamente).
+-- residente_id: Referencia al usuario residente que creó la reserva.
+-- fecha_evento: Fecha en que se realizará el evento.
+-- hora_inicio: Hora de inicio del evento (entre 12:00 y 23:00).
+-- hora_fin: Hora de finalización del evento (debe ser mayor que hora_inicio).
+-- tipo_evento: Tipo de evento (ej: Fiesta Infantil, Reunión Social).
+-- numero_invitados: Cantidad de invitados al evento.
+-- descripcion: Descripción opcional del evento.
+-- estado: Estado actual de la reserva (pendiente, aprobada, rechazada, cancelada).
+-- revisado_por: Referencia al administrador que revisó la reserva.
+-- fecha_revision: Fecha y hora en que se revisó la reserva.
+-- motivo_rechazo: Motivo del rechazo si aplica.
+-- creado_en: Fecha y hora de creación de la reserva.
+-- actualizado_en: Fecha y hora de la última actualización (se actualiza con trigger).
+-- ==========================================
 CREATE TABLE reservas (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   residente_id uuid NOT NULL REFERENCES usuarios(id),
@@ -22,50 +60,127 @@ CREATE TABLE reservas (
   fecha_revision TIMESTAMPTZ,
   motivo_rechazo TEXT,
   -- Auditoría
-  creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  creo_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Índices para mejor rendimiento
+-- ==========================================
+-- ÍNDICES DE RENDIMIENTO
+-- ==========================================
+-- Estos índices aceleran las consultas más frecuentes sobre reservas.
+
+-- Índice para buscar reservas por residente
 CREATE INDEX idx_reservas_residente ON reservas(residente_id);
+
+-- Índice para buscar reservas por fecha
 CREATE INDEX idx_reservas_fecha ON reservas(fecha_evento);
+
+-- Índice para filtrar reservas por estado
 CREATE INDEX idx_reservas_estado ON reservas(estado);
+
+-- Índice compuesto para buscar reservas por fecha y estado (calendario)
 CREATE INDEX idx_reservas_fecha_estado ON reservas(fecha_evento, estado);
 
--- 3. HABILITAR RLS
+-- ==========================================
+-- ROW LEVEL SECURITY (RLS)
+-- ==========================================
+-- Habilitar RLS para proteger los datos a nivel de fila.
 ALTER TABLE reservas ENABLE ROW LEVEL SECURITY;
 
--- 4. POLÍTICAS DE RLS PARA RESERVAS
--- Residente puede ver solo sus propias reservas
+-- ==========================================
+-- POLÍTICAS DE SEGURIDAD (RLS) PARA RESERVAS
+-- ==========================================
+
+-- ==========================================
+-- POLÍTICA: "Residente ve sus propias reservas"
+-- ==========================================
+-- Permisos: SELECT
+-- Regla: El residente solo puede ver sus propias reservas.
+--         Administrador y Supervisor pueden ver todas las reservas.
+-- ==========================================
 CREATE POLICY "Residente ve sus propias reservas" ON reservas 
   FOR SELECT USING (auth.uid() = residente_id OR get_user_role(auth.uid()) IN ('administrador', 'supervisor'));
 
--- Residente puede insertar reservas para sí mismo
+-- ==========================================
+-- POLÍTICA: "Residente puede crear sus propias reservas"
+-- ==========================================
+-- Permisos: INSERT
+-- Regla: Solo el residente puede insertar reservas a su nombre.
+-- ==========================================
 CREATE POLICY "Residente puede crear sus propias reservas" ON reservas 
   FOR INSERT WITH CHECK (auth.uid() = residente_id);
 
--- Residente puede actualizar solo sus reservas si están en estado "pendiente" (para cancelar)
+-- ==========================================
+-- POLÍTICA: "Residente puede actualizar sus reservas pendientes"
+-- ==========================================
+-- Permisos: UPDATE
+-- Regla: El residente solo puede actualizar sus reservas que estén en estado 'pendiente'
+--         (para cancelarlas antes de que sean revisadas).
+-- ==========================================
 CREATE POLICY "Residente puede actualizar sus reservas pendientes" ON reservas 
   FOR UPDATE USING (auth.uid() = residente_id AND estado = 'pendiente');
 
--- Administrador puede hacer todo
+-- ==========================================
+-- POLÍTICA: "Administrador puede ver todas las reservas"
+-- ==========================================
+-- Permisos: SELECT
+-- Regla: El administrador puede consultar todas las reservas sin restricciones.
+-- ==========================================
 CREATE POLICY "Administrador puede ver todas las reservas" ON reservas 
   FOR SELECT USING (get_user_role(auth.uid()) = 'administrador');
 
+-- ==========================================
+-- POLÍTICA: "Administrador puede insertar reservas"
+-- ==========================================
+-- Permisos: INSERT
+-- Regla: El administrador puede crear reservas para cualquier residente.
+-- ==========================================
 CREATE POLICY "Administrador puede insertar reservas" ON reservas 
   FOR INSERT WITH CHECK (get_user_role(auth.uid()) = 'administrador');
 
+-- ==========================================
+-- POLÍTICA: "Administrador puede actualizar todas las reservas"
+-- ==========================================
+-- Permisos: UPDATE
+-- Regla: El administrador puede modificar cualquier reserva (aprobar, rechazar, etc.).
+-- ==========================================
 CREATE POLICY "Administrador puede actualizar todas las reservas" ON reservas 
   FOR UPDATE USING (get_user_role(auth.uid()) = 'administrador');
 
+-- ==========================================
+-- POLÍTICA: "Administrador puede eliminar todas las reservas"
+-- ==========================================
+-- Permisos: DELETE
+-- Regla: El administrador puede eliminar cualquier reserva del sistema.
+-- ==========================================
 CREATE POLICY "Administrador puede eliminar todas las reservas" ON reservas 
   FOR DELETE USING (get_user_role(auth.uid()) = 'administrador');
 
--- Supervisor puede ver todas pero solo admin puede aprobar/rechazar
+-- ==========================================
+-- POLÍTICA: "Supervisor puede ver todas las reservas"
+-- ==========================================
+-- Permisos: SELECT
+-- Regla: El supervisor puede consultar todas las reservas.
+--         Solo el administrador puede aprobar o rechazar.
+-- ==========================================
 CREATE POLICY "Supervisor puede ver todas las reservas" ON reservas 
   FOR SELECT USING (get_user_role(auth.uid()) = 'supervisor');
 
--- 5. FUNCIÓN RPC PARA VALIDAR DISPONIBILIDAD DE FECHA
+-- ==========================================
+-- FUNCIÓN RPC: verificar_disponibilidad_reserva
+-- ==========================================
+-- Verifica si una fecha está disponible para reservar el salón social.
+-- Valida las reglas de negocio: 48 horas mínimas de anticipación,
+-- máximo 90 días de anticipación, y que no exista otra reserva activa
+-- para la misma fecha.
+--
+-- Parámetros:
+-- p_fecha: Fecha que se desea reservar.
+-- p_reserva_id: ID de una reserva existente para excluir de la verificación
+--                (útil al editar una reserva, NULL para reservas nuevas).
+--
+-- Retorna: JSON con 'disponible' (boolean) y 'mensaje' (texto descriptivo).
+-- ==========================================
 CREATE OR REPLACE FUNCTION verificar_disponibilidad_reserva(
   p_fecha DATE,
   p_reserva_id UUID DEFAULT NULL
@@ -76,10 +191,11 @@ DECLARE
   dias_en_adelante INTEGER;
   dias_maximo INTEGER;
 BEGIN
-  -- Validar que la fecha sea al menos 48 horas en el futuro
+  -- Calcular las horas de anticipación con respecto a la fecha actual
   dias_en_adelante := (p_fecha - CURRENT_DATE) * 24 + 
     EXTRACT(HOUR FROM (CURRENT_TIMESTAMP - DATE_TRUNC('day', CURRENT_TIMESTAMP)));
   
+  -- Validar que la fecha sea al menos 48 horas en el futuro
   IF dias_en_adelante < 48 THEN
     RETURN json_build_object(
       'disponible', false,
@@ -114,7 +230,13 @@ BEGIN
 END;
 $$;
 
--- 6. TRIGGER PARA ACTUALIZAR "actualizado_en" AUTOMÁTICAMENTE
+-- ==========================================
+-- FUNCIÓN: trigger_actualizar_timestamp
+-- ==========================================
+-- Actualiza automáticamente el campo 'actualizado_en' con la fecha y hora
+-- actual cada vez que se modifica un registro en la tabla 'reservas'.
+-- Se ejecuta como trigger BEFORE UPDATE.
+-- ==========================================
 CREATE OR REPLACE FUNCTION trigger_actualizar_timestamp()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -123,6 +245,13 @@ BEGIN
 END;
 $$;
 
+-- ==========================================
+-- TRIGGER: tr_reservas_actualizado_en
+-- ==========================================
+-- Se ejecuta BEFORE UPDATE sobre la tabla 'reservas'.
+-- Actualiza el campo 'actualizado_en' automáticamente antes de cada
+-- actualización para mantener un registro preciso de la última modificación.
+-- ==========================================
 CREATE TRIGGER tr_reservas_actualizado_en
 BEFORE UPDATE ON reservas
 FOR EACH ROW

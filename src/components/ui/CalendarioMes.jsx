@@ -8,43 +8,75 @@
  *  - Días con reserva muestran pastilla con tipo de evento y apartamento
  *  - Al hacer clic en una pastilla, abre un panel con detalles
  *  - Sin dependencias de librerías de calendario externas
+ * 
+ * Props:
+ *  - reservas: Array de objetos de reserva con campos: id, fecha_evento, tipo_evento,
+ *    usuarios: { nombres, apellidos, numero_apto }
+ *  - onSelectReserva: Callback al seleccionar una reserva (solo admin/supervisor).
+ *  - user: Objeto del usuario actual con { perfiles: { nombre } } para determinar permisos.
+ * 
+ * Comportamiento por rol:
+ *  - Administrador/Supervisor: Puede hacer clic en las pastillas para ver detalles.
+ *  - Residente: Solo ve "Día reservado" sin interacción.
+ *
+ * @module components/ui/CalendarioMes
  */
 
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
+/**
+ * CalendarioMes
+ * Componente de calendario mensual con visualización de reservas aprobadas.
+ *
+ * @param {Object} props
+ * @param {Array} props.reservas - Lista de reservas aprobadas del mes a mostrar.
+ * @param {Function} props.onSelectReserva - Callback al hacer clic en una reserva (solo admin/supervisor).
+ * @param {Object} props.user - Usuario actual con info de perfil para determinar rol.
+ */
 const CalendarioMes = ({ reservas, onSelectReserva, user }) => {
+    // Estado del mes actualmente visualizado
     const [mesActual, setMesActual] = useState(new Date());
+    // Determinar si el usuario actual es administrador o supervisor (para permisos de interacción)
     const isAdminOrSupervisor = user?.perfiles?.nombre === 'administrador' || user?.perfiles?.nombre === 'supervisor';
 
-    // ... (keep helper functions same)
-
+    /**
+     * getNombresMeses
+     * Retorna array con los nombres de los meses en español para el encabezado del calendario.
+     * @returns {string[]} Array de 12 meses en español.
+     */
     const getNombresMeses = () => [
         'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
 
+    /**
+     * getNombresDias
+     * Retorna array con los nombres abreviados de los días de la semana.
+     * @returns {string[]} Array de 7 días (Dom–Sáb).
+     */
     const getNombresDias = () => ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-    const primerDia = new Date(mesActual.getFullYear(), mesActual.getMonth(), 1);
-    const ultimoDia = new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 0);
-    const diaInicio = primerDia.getDay();
-    const diasEnMes = ultimoDia.getDate();
+    // Cálculo de fechas para la grilla del calendario
+    const primerDia = new Date(mesActual.getFullYear(), mesActual.getMonth(), 1); // Primer día del mes
+    const ultimoDia = new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 0); // Último día del mes
+    const diaInicio = primerDia.getDay(); // Día de la semana del primer día (0=Dom, 6=Sáb)
+    const diasEnMes = ultimoDia.getDate(); // Cantidad de días en el mes actual
 
-    const diasAnterior = new Date(mesActual.getFullYear(), mesActual.getMonth(), 0).getDate();
-    const diasCeldas = [];
+    const diasAnterior = new Date(mesActual.getFullYear(), mesActual.getMonth(), 0).getDate(); // Último día del mes anterior
+    const diasCeldas = []; // Array que contiene todas las 42 celdas del calendario (6 filas × 7 columnas)
 
-    // Días del mes anterior (grises)
+    // Generar celdas para los días del mes anterior (para completar la primera semana)
     for (let i = diasAnterior - diaInicio + 1; i <= diasAnterior; i++) {
         diasCeldas.push({
             dia: i,
             mes: mesActual.getMonth() - 1,
             ano: mesActual.getFullYear(),
-            esOtroMes: true
+            esOtroMes: true // Marca visual para mostrar en gris
         });
     }
 
-    // Días del mes actual
+    // Generar celdas para los días del mes actual
     for (let i = 1; i <= diasEnMes; i++) {
         diasCeldas.push({
             dia: i,
@@ -54,26 +86,39 @@ const CalendarioMes = ({ reservas, onSelectReserva, user }) => {
         });
     }
 
-    // Días del mes siguiente (grises)
+    // Generar celdas para completar la grilla (hasta 42 celdas = 6 semanas)
     const diasRestantes = 42 - diasCeldas.length;
     for (let i = 1; i <= diasRestantes; i++) {
         diasCeldas.push({
             dia: i,
             mes: mesActual.getMonth() + 1,
             ano: mesActual.getFullYear(),
-            esOtroMes: true
+            esOtroMes: true // Marca visual para mostrar en gris
         });
     }
 
+    /**
+     * obtenerReservasDia
+     * Filtra las reservas aprobadas por una fecha específica.
+     * Compara el campo fecha_evento (formato YYYY-MM-DD) con la fecha de la celda.
+     *
+     * @param {number} dia - Día del mes (1-31).
+     * @param {number} mes - Mes (0-11, formato JavaScript).
+     * @param {number} ano - Año completo (ej: 2026).
+     * @returns {Array} Reservas que coinciden con la fecha especificada.
+     */
     const obtenerReservasDia = (dia, mes, ano) => {
+        // Formatear fecha a YYYY-MM-DD para comparar con el campo fecha_evento de la BD
         const fechaStr = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
         return reservas.filter(r => r.fecha_evento === fechaStr);
     };
 
+    /** Navegar al mes anterior */
     const irAlMesAnterior = () => {
         setMesActual(new Date(mesActual.getFullYear(), mesActual.getMonth() - 1));
     };
 
+    /** Navegar al mes siguiente */
     const irAlMesSiguiente = () => {
         setMesActual(new Date(mesActual.getFullYear(), mesActual.getMonth() + 1));
     };

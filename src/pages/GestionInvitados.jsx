@@ -1,8 +1,32 @@
 /**
  * GestionInvitados.jsx
  * ─────────────────────────────────────────────────────────
- * Módulo para que los residentes gestionen sus listas de invitados digitalmente.
- * 
+ * Página de gestión de invitados para residentes del SmartHall.
+ *
+ * Propósito:
+ *   Permite a los residentes registrar, visualizar y eliminar invitados
+ *   digitales para sus eventos reservados y aprobados. La lista generada
+ *   es consultada por portería para autorizar el acceso al edificio.
+ *
+ * Flujo de trabajo (workflow):
+ *   1. El residente visualiza sus reservas aprobadas y futuras.
+ *   2. Selecciona un evento específico para administrar su lista de invitados.
+ *   3. El sistema carga los invitados existentes para esa reserva.
+ *   4. El residente agrega nuevos invitados (nombre + documento de identidad).
+ *   5. El sistema valida aforo, duplicados y campos obligatorios en tiempo real.
+ *   6. El residente puede eliminar invitados que aún no han ingresado.
+ *   7. Portería utiliza esta lista para controlar el acceso al edificio.
+ *
+ * Hooks y contexto utilizados:
+ *   - useAuth(): Obtiene el usuario autenticado y su perfil (rol, id).
+ *   - useReservas(usuarioId): Carga las reservas del residente.
+ *   - useInvitados(reservaId): CRUD de invitados para una reserva específica.
+ *   - useUIFeedback(): ShowToast y showConfirm para notificaciones y confirmaciones.
+ *
+ * Control de acceso:
+ *   Solo usuarios con rol 'residente' pueden acceder a esta página.
+ *   Usuarios con otros roles ven un mensaje de acceso denegado.
+ *
  * Características Premium:
  *  - Carga automática de las reservas aprobadas del residente.
  *  - Control de aforo/afluencia: Validación en caliente que impide exceder
@@ -31,64 +55,119 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+/**
+ * GestionInvitados - Componente principal de gestión de invitados.
+ *
+ * Renderiza una interfaz de dos paneles:
+ *   - Panel izquierdo: Lista de reservas aprobadas y futuras del residente.
+ *   - Panel derecho: Formulario de agregar invitado, dashboard de aforo
+ *     y tabla de invitados registrados para la reserva seleccionada.
+ *
+ * Flujo de renderizado:
+ *   1. Verifica que el usuario tenga rol 'residente'; si no, muestra acceso denegado.
+ *   2. Carga las reservas aprobadas del residente al montar el componente.
+ *   3. Al seleccionar una reserva, carga los invitados asociados a esa reserva.
+ *   4. Permite agregar/eliminar invitados con validaciones de aforo y duplicados.
+ *
+ * @returns {JSX.Element} Página completa de gestión de invitados o mensaje de acceso denegado.
+ */
 const GestionInvitados = () => {
+  // Contexto de autenticación: usuario actual y perfil con rol
   const { user, profile } = useAuth();
+  // Contexto de UI: funciones para mostrar toast y diálogos de confirmación
   const { showToast, showConfirm } = useUIFeedback();
 
-  // Estados
+  // ── Estados locales ──────────────────────────────────────────────────
+  /** @type {[Object|null, Function]} Reserva actualmente seleccionada por el residente */
   const [reservaSeleccionada, setReservaSeleccionada] = useState(null);
+  /** @type {[string, Function]} Nombre completo del nuevo invitado a registrar */
   const [nombreCompleto, setNombreCompleto] = useState('');
+  /** @type {[string, Function]} Número de documento de identidad del nuevo invitado */
   const [documentoIdentidad, setDocumentoIdentidad] = useState('');
 
-  // 1. Obtener Reservas del Residente
-  // Pasamos el ID del usuario residente para traer solo sus reservas
+  // ── Obtener Reservas del Residente ───────────────────────────────────
+  // Se pasa el ID del usuario residente para traer solo sus reservas
   const { reservas, loading: cargandoReservas } = useReservas(user?.id);
 
-  // Filtrar solo las reservas APROBADAS y FUTURAS (o vigentes)
+  /**
+   * Reservas aprobadas y futuras (o vigentes) del residente.
+   * Filtra las reservas para mostrar solo las que:
+   *   - Tienen estado 'aprobada'
+   *   - La fecha del evento es hoy o posterior
+   * Se recalcula cuando cambia el array de reservas.
+   */
   const reservasAprobadas = useMemo(() => {
+    // Asegurar que reservas sea un array (evitar errores si es undefined/null)
     const raw = Array.isArray(reservas) ? reservas : [];
+    // Fecha de hoy en formato YYYY-MM-DD para comparar con las fechas de las reservas
     const hoy = new Date().toISOString().split('T')[0];
+    // Filtrar: solo reservas aprobadas con fecha futura o vigente
     return raw.filter(r => r.estado === 'aprobada' && r.fecha_evento >= hoy);
   }, [reservas]);
 
-  // 2. Hook de Invitados para la Reserva Seleccionada
+  // ── Hook de Invitados para la Reserva Seleccionada ───────────────────
+  // Se pasa el ID de la reserva seleccionada; si es null, el hook no carga datos
   const {
-    invitados,
-    cargandoInvitados,
-    agregarInvitado,
-    agregando,
-    eliminarInvitado,
-    eliminando
+    invitados,          // Array de invitados registrados en la reserva seleccionada
+    cargandoInvitados,  // Boolean: true mientras se cargan los invitados
+    agregarInvitado,    // Función async para agregar un nuevo invitado
+    agregando,          // Boolean: true mientras se está procesando la adición
+    eliminarInvitado,   // Función async para eliminar un invitado por su ID
+    eliminando          // Boolean: true mientras se está procesando la eliminación
   } = useInvitados(reservaSeleccionada?.id);
 
-  // Reset de estados locales al cambiar de reserva
+  /**
+   * Efecto para limpiar los campos del formulario al cambiar de reserva.
+   * Evita que queden datos residuales de un formulario anterior.
+   */
   useEffect(() => {
     setNombreCompleto('');
     setDocumentoIdentidad('');
   }, [reservaSeleccionada]);
 
-  // Aforo de la reserva
+  // ── Cálculo de aforo ─────────────────────────────────────────────────
+  /** Capacidad máxima de invitados definida en la reserva */
   const aforoReservado = reservaSeleccionada?.numero_invitados || 0;
+  /** Cantidad de invitados actualmente registrados en la lista */
   const aforoRegistrado = invitados?.length || 0;
+  /** Cupos disponibles para agregar más invitados (puede ser negativo si se excede) */
   const aforoDisponible = aforoReservado - aforoRegistrado;
 
   // ────────────────────────────────────────────────────────
-  // Handlers
+  // Handlers (Manejadores de eventos)
   // ────────────────────────────────────────────────────────
 
+  /**
+   * Manejador para agregar un nuevo invitado a la reserva seleccionada.
+   *
+   * Flujo:
+   *   1. Previene el comportamiento por defecto del formulario.
+   *   2. Valida que ambos campos (nombre y documento) no estén vacíos.
+   *   3. Valida que no se haya superado el aforo máximo de la reserva.
+   *   4. Valida que el documento no esté duplicado en la lista actual.
+   *   5. Llama a agregarInvitado() del hook useInvitados con los datos del formulario.
+   *   6. Limpia los campos del formulario y muestra toast de éxito.
+   *   7. En caso de error, muestra toast con el mensaje de error.
+   *
+   * @param {React.FormEvent} e - Evento de envío del formulario.
+   * @returns {void}
+   */
   const handleAgregarInvitado = async (e) => {
     e.preventDefault();
 
+    // Validación: campos obligatorios
     if (!nombreCompleto.trim() || !documentoIdentidad.trim()) {
       showToast('Todos los campos son obligatorios.', 'warning');
       return;
     }
 
+    // Validación: límite de aforo de la reserva
     if (aforoRegistrado >= aforoReservado) {
       showToast(`Límite superado. Tu reserva solo permite un máximo de ${aforoReservado} invitados.`, 'error');
       return;
     }
 
+    // Validación: documento duplicado en la lista actual
     const yaRegistrado = invitados.some(inv => inv.documento_identidad === documentoIdentidad.trim());
     if (yaRegistrado) {
       showToast('Este número de documento ya está registrado en la lista de invitados.', 'warning');
@@ -96,10 +175,12 @@ const GestionInvitados = () => {
     }
 
     try {
+      // Servicio: agregarInvitado del hook useInvitados
       await agregarInvitado({
         nombreCompleto: nombreCompleto.trim(),
         documentoIdentidad: documentoIdentidad.trim()
       });
+      // Limpiar formulario después de registro exitoso
       setNombreCompleto('');
       setDocumentoIdentidad('');
       showToast('Invitado registrado correctamente.', 'success');
@@ -108,7 +189,22 @@ const GestionInvitados = () => {
     }
   };
 
+  /**
+   * Manejador para eliminar un invitado de la lista.
+   *
+   * Flujo:
+   *   1. Muestra un diálogo de confirmación (showConfirm) con advertencia de peligro.
+   *   2. Si el usuario confirma, llama a eliminarInvitado() del hook useInvitados.
+   *   3. Muestra toast de éxito o error según el resultado.
+   *
+   * Nota: No se permite eliminar invitados que ya hayan ingresado (estado_acceso === 'ingresado').
+   *       Esta validación se realiza en el botón de la tabla (disabled).
+   *
+   * @param {string|number} invitadoId - ID único del invitado a eliminar.
+   * @returns {void}
+   */
   const handleEliminarInvitado = async (invitadoId) => {
+    // Diálogo de confirmación antes de eliminar
     const confirmado = await showConfirm({
       title: '¿Eliminar invitado?',
       message: 'Esta acción removerá al invitado de la lista de acceso. No se puede deshacer.',
@@ -118,6 +214,7 @@ const GestionInvitados = () => {
     });
     if (!confirmado) return;
     try {
+      // Servicio: eliminarInvitado del hook useInvitados
       await eliminarInvitado(invitadoId);
       showToast('Invitado eliminado de la lista.', 'success');
     } catch (err) {
@@ -125,7 +222,9 @@ const GestionInvitados = () => {
     }
   };
 
-  // Solo residentes tienen acceso a gestionar sus invitados
+  // ── Control de acceso por rol ─────────────────────────────────────────
+  // Solo los usuarios con rol 'residente' pueden gestionar invitados.
+  // Otros roles (admin, portería, etc.) ven un mensaje de acceso denegado.
   if (profile?.rol !== 'residente') {
     return (
       <div style={styles.accesoNegadoContainer}>
@@ -138,10 +237,11 @@ const GestionInvitados = () => {
     );
   }
 
+  // ── Renderizado principal ─────────────────────────────────────────────
   return (
     <div className="fade-in" style={styles.container}>
       
-      {/* Cabecera */}
+      {/* Cabecera de la página con título y descripción */}
       <header style={styles.header}>
         <div>
           <h1 style={styles.titulo}>Lista de Invitados Digital</h1>
@@ -149,9 +249,10 @@ const GestionInvitados = () => {
         </div>
       </header>
 
+      {/* Layout de dos paneles: izquierda (reservas) / derecha (gestión de invitados) */}
       <div style={styles.layoutGrid}>
         
-        {/* LADO IZQUIERDO: SELECCIÓN DE EVENTOS APROBADOS */}
+        {/* Panel izquierdo: Lista de eventos aprobados del residente */}
         <section style={styles.seccionIzquierda}>
           <div style={styles.cardHeader}>
             <Calendar size={18} color="var(--primary)" />
@@ -168,6 +269,7 @@ const GestionInvitados = () => {
           ) : (
             <div style={styles.listaReservas}>
               {reservasAprobadas.map(res => {
+                // Determina si esta reserva es la actualmente seleccionada (para estilo activo)
                 const esActivo = reservaSeleccionada?.id === res.id;
                 return (
                   <div
@@ -181,6 +283,7 @@ const GestionInvitados = () => {
                     <div style={styles.reservaInfo}>
                       <span style={styles.reservaTipo}>{res.tipo_evento}</span>
                       <span style={styles.reservaFecha}>
+                        {/* Formatear fecha del evento: lunes, 15 ene. Se añade T12:00:00 para evitar problemas de zona horaria */}
                         {new Date(res.fecha_evento + 'T12:00:00').toLocaleDateString('es-ES', {
                           weekday: 'short',
                           day: 'numeric',
@@ -199,7 +302,7 @@ const GestionInvitados = () => {
           )}
         </section>
 
-        {/* LADO DERECHO: GESTIÓN DE INVITADOS */}
+        {/* Panel derecho: Gestión de invitados para la reserva seleccionada */}
         <section style={styles.seccionDerecha}>
           {!reservaSeleccionada ? (
             <div style={styles.reservaNoSeleccionada}>
@@ -210,7 +313,7 @@ const GestionInvitados = () => {
           ) : (
             <div style={styles.gestionWrapper}>
               
-              {/* Resumen de Aforo / Afluencia */}
+              {/* Dashboard de aforo: muestra capacidad total, registrados y cupos libres */}
               <div style={styles.aforoDashboard}>
                 <div style={styles.aforoCard}>
                   <span style={styles.aforoLabel}>Aforo Total</span>
@@ -231,7 +334,7 @@ const GestionInvitados = () => {
                 </div>
               </div>
 
-              {/* Formulario de Adición (Oculto si el aforo está completo) */}
+              {/* Formulario de agregar invitado (se oculta si el aforo está completo) */}
               <div style={styles.cajaAccion}>
                 <div style={styles.cajaHeader}>
                   <UserPlus size={18} color="var(--primary)" />
@@ -289,7 +392,7 @@ const GestionInvitados = () => {
                 )}
               </div>
 
-              {/* Listado de Invitados Registrados */}
+              {/* Tabla de invitados registrados con estado de acceso y botón de eliminar */}
               <div style={styles.cajaLista}>
                 <div style={styles.cajaHeader}>
                   <Users size={18} color="var(--text-muted)" />
@@ -320,6 +423,7 @@ const GestionInvitados = () => {
                             <td style={{ ...styles.celda, fontWeight: '600' }}>{inv.nombre_completo}</td>
                             <td style={styles.celda}>{inv.documento_identidad}</td>
                             <td style={styles.celda}>
+                              {/* Badge de estado de acceso: 'ingresado' (verde) o 'pendiente' (gris) */}
                               <span style={{
                                 ...styles.badgeIngreso,
                                 backgroundColor:
@@ -331,6 +435,7 @@ const GestionInvitados = () => {
                               </span>
                             </td>
                             <td style={{ ...styles.celda, textAlign: 'center' }}>
+                              {/* Botón eliminar: deshabilitado si el invitado ya ingresó o se está eliminando */}
                               <button
                                 onClick={() => handleEliminarInvitado(inv.id)}
                                 disabled={eliminando || inv.estado_acceso === 'ingresado'}
@@ -361,6 +466,11 @@ const GestionInvitados = () => {
   );
 };
 
+/**
+ * Estilos en línea del componente GestionInvitados.
+ * Sigue las directrices de diseño de frontend-design para mantener
+ * consistencia visual con el resto de la aplicación.
+ */
 const styles = {
   container: {
     padding: '2rem',
@@ -719,4 +829,5 @@ const styles = {
   }
 };
 
+// Exportación por defecto del componente principal
 export default GestionInvitados;

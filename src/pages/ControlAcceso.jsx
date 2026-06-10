@@ -1,20 +1,78 @@
 /**
  * ControlAcceso.jsx
  * ─────────────────────────────────────────────────────────
- * Panel de Control de Acceso y Check-in digital para el Supervisor y Portería.
- * 
- * Características Premium:
- *  - Optimizado para pantallas táctiles y móviles de portería.
- *  - Carga inteligente de invitados agendados para HOY en tiempo real (refetchInterval TanStack Query).
- *  - Panel de Aforo del Día: Monitoreo gráfico interactivo de ingresos en caliente.
- *  - Buscador global predictivo de invitados por documento o nombre.
- *  - Registro ágil de check-in / check-out con estampa de fecha y hora exacta.
- *  - Diseño refinado, estructurado y de alto impacto visual.
+ * Página principal de Control de Acceso y Check-in digital para el personal
+ * de portería (supervisor) y administradores del sistema SmartHall.
+ *
+ * PROPÓSITO:
+ *  Permite al personal de portería verificar el ingreso de invitados programados
+ *  para el día actual en el salón social del conjunto residencial. Registra
+ *  timestamps de entrada/salida y ofrece un panel de aforo en tiempo real.
+ *
+ * FLUJO DE TRABAJO (Check-in / Check-out):
+ *  1. Al cargar, se obtienen automáticamente todas las reservas aprobadas para HOY
+ *     y sus invitados asociados mediante el hook `useInvitados.obtenerInvitadosDeHoy()`.
+ *  2. La query de TanStack Query se re-sincroniza cada 15 segundos (refetchInterval)
+ *     para mantener actualizado el estado de ingresos en la BD de Supabase.
+ *  3. El portero busca al invitado por documento, nombre o residente asociado.
+ *  4. Al presionar "Dar Ingreso", se actualiza `estado_acceso` a 'ingresado' y se
+ *     registra la fecha/hora en `ingresado_a_las`.
+ *  5. Si el invitado ya ingresó, se muestra el botón "Deshacer" para revertir el
+ *     estado a 'pendiente' y limpiar el timestamp.
+ *  6. Los contadores de aforo (total, ingresados, pendientes) se recalculan
+ *     automáticamente en cada ciclo de render.
+ *
+ * HOOKS Y APIS UTILIZADOS:
+ *  - useAuth(): Obtiene el perfil del usuario autenticado y su rol (para permisos).
+ *  - useInvitados(): Hook de TanStack Query que gestiona la tabla 'invitados_reserva'
+ *    en Supabase, incluyendo queries, mutaciones y caching.
+ *  - useQuery (TanStack): Para la carga y auto-refetch de datos.
+ *  - useMemo: Para cálculos derivados (aforo, filtrado) con memoización.
+ *  - useState: Para el estado local del filtro y mensajes de retroalimentación.
+ *
+ * COMPONENTES UI:
+ *  - Cabecera con botón de sincronización manual.
+ *  - Panel de KPIs (aforo esperado, ingresados, pendientes).
+ *  - Barra de búsqueda predictiva por documento/nombre/residente/apto.
+ *  - Tabla de invitados con acciones de check-in/check-out.
+ *  - Tarjeta de acceso denegado para usuarios sin permisos.
+ *
+ * NOTA: Este componente NO recibe props. Todo su estado es local o se obtiene
+ *       de hooks y contextos globales.
  */
 
+/**
+ * Importaciones de React y hooks nativos:
+ *  - useState: Estado local para el filtro de búsqueda y mensajes de feedback.
+ *  - useMemo: Memoización de cálculos derivados (aforo y lista filtrada).
+ */
 import React, { useState, useMemo } from 'react';
+
+/**
+ * Contexto de autenticación: provee el perfil del usuario logueado (profile)
+ * para validar su rol (administrador, supervisor) y controlar el acceso a esta página.
+ */
 import { useAuth } from '../context/AuthContext';
+
+/**
+ * Hook personalizado useInvitados: centraliza la comunicación con la tabla
+ * 'invitados_reserva' en Supabase a través de TanStack React Query.
+ * Provee: obtenerInvitadosDeHoy (query con auto-refetch) y registrarCheckIn (mutación).
+ */
 import { useInvitados } from '../hooks/useInvitados';
+
+/**
+ * Iconos de Lucide React utilizados en la interfaz:
+ *  - ShieldCheck: Logo de seguridad en la cabecera.
+ *  - Search: Icono del campo de búsqueda.
+ *  - UserCheck/UserMinus: Botones de check-in (ingresar) / check-out (deshacer).
+ *  - Clock: Indicador de hora de ingreso.
+ *  - Home: Icono junto al número de apartamento del residente.
+ *  - CheckCircle/AlertTriangle: Estados de éxito y error en alertas.
+ *  - Users: KPI de total de invitados.
+ *  - RefreshCw: Botón de sincronización manual.
+ *  - TrendingUp: Importado pero no utilizado activamente en el JSX.
+ */
 import {
   ShieldCheck,
   Search,
@@ -29,17 +87,76 @@ import {
   TrendingUp
 } from 'lucide-react';
 
+/**
+ * Componente principal ControlAcceso.
+ *
+ * @description Página de control de acceso para portería. No recibe props.
+ * Accede al contexto de autenticación y al hook de invitados para gestionar
+ * el flujo de check-in/check-out de invitados programados para el día actual.
+ *
+ * @returns {JSX.Element} Panel completo de control de acceso, o tarjeta de
+ * acceso denegado si el usuario no tiene el rol adecuado.
+ */
 const ControlAcceso = () => {
+  /**
+   * Perfil del usuario autenticado, obtenido del AuthContext.
+   * Se utiliza para verificar el rol del usuario (administrador o supervisor)
+   * y autorizar el acceso a esta página de portería.
+   */
   const { profile } = useAuth();
   
-  // Estados Locales
+  // ────────────────────────────────────────────────────────
+  // Estados Locales del componente
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Texto de búsqueda introducido por el portero en el campo de filtrado.
+   * Se usa para filtrar la lista de invitados en tiempo real por nombre,
+   * documento, residente asociado o número de apartamento.
+   * Valor inicial: cadena vacía (sin filtro).
+   */
   const [filtroTexto, setFiltroTexto] = useState('');
+
+  /**
+   * Mensaje de retroalimentación local que se muestra al usuario después
+   * de realizar una acción (check-in, error, etc.).
+   * Estructura: { tipo: 'success' | 'error' | '', texto: string }
+   * Se limpia automáticamente después de 3 segundos en handleCheckIn.
+   */
   const [mensajeLocal, setMensajeLocal] = useState({ tipo: '', texto: '' });
 
-  // Hook de Invitados (sin ID de reserva específico, usaremos obtenerInvitadosDeHoy)
+  // ────────────────────────────────────────────────────────
+  // Hook de Invitados (sin ID de reserva específico)
+  // ────────────────────────────────────────────────────────
+  /**
+   * Desestructuración del hook useInvitados.
+   *  - obtenerInvitadosDeHoy: Función que retorna un objeto useQuery con los
+   *    invitados de reservas aprobadas para la fecha actual. Incluye auto-refetch
+   *    cada 15 segundos para sincronización en tiempo real con la BD.
+   *  - registrarCheckIn: Función mutadora (mutateAsync) que actualiza el estado
+   *    de acceso de un invitado en la tabla 'invitados_reserva'.
+   *  - registrando: Booleano que indica si una mutación de check-in está en curso.
+   */
   const { obtenerInvitadosDeHoy, registrarCheckIn, registrando } = useInvitados();
 
-  // Obtener la query de TanStack Query
+  /**
+   * Datos de la query de TanStack Query para invitados de hoy.
+   *  - invitadosHoy: Array de objetos invitado con datos de reserva anidados.
+   *    Cada objeto contiene: id, nombre_completo, documento_identidad,
+   *    estado_acceso, ingresado_a_las, reserva (con usuarios: nombres, apellidos, numero_apto).
+   *  - cargandoInvitados: TRUE mientras se carga la query por primera vez.
+   *  - recargarInvitados: Función para forzar una recarga manual de los datos.
+   *  - isFetching: TRUE mientras se está realizando cualquier fetch (incluyendo auto-refetch).
+   *
+   * MECANISMO DE AUTO-REFRESH (15 segundos):
+   *  La query configurada en obtenerInvitadosDeHoy() tiene un refetchInterval de
+   *  15000ms (15 segundos). Esto significa que TanStack Query re-ejecuta la query
+   *  automáticamente cada 15 segundos, manteniendo los datos sincronizados con la
+   *  base de datos de Supabase. Esto es crítico para el uso en portería, donde
+   *  múltiples porteros pueden estar registrando ingresos simultáneamente y cada
+   *  uno necesita ver los datos más actualizados. El botón "Sincronizar" permite
+   *  una recarga manual inmediata fuera del intervalo programado.
+   */
   const {
     data: invitadosHoy = [],
     isLoading: cargandoInvitados,
@@ -51,6 +168,19 @@ const ControlAcceso = () => {
   // 1. Cálculos de Aforo en Tiempo Real (HOY)
   // ────────────────────────────────────────────────────────
 
+  /**
+   * Memoización de las estadísticas de aforo del día actual.
+   *
+   * @description Calcula tres métricas clave a partir del array de invitadosHoy:
+   *  - total: Cantidad total de invitados programados para hoy.
+   *  - ingresados: Cantidad de invitados con estado_acceso === 'ingresado'.
+   *  - pendientes: Diferencia entre total e ingresados (los que aún no han llegado).
+   *
+   * Se recalcula únicamente cuando cambia invitadosHoy (optimización con useMemo).
+   * Estos valores alimentan los KPIs del panel de aforo en la cabecera de la página.
+   *
+   * @returns {{ total: number, ingresados: number, pendientes: number }}
+   */
   const aforoHoy = useMemo(() => {
     const total = invitadosHoy.length;
     const ingresados = invitadosHoy.filter(i => i.estado_acceso === 'ingresado').length;
@@ -64,9 +194,24 @@ const ControlAcceso = () => {
   }, [invitadosHoy]);
 
   // ────────────────────────────────────────────────────────
-  // 2. Filtrado de Invitados
+  // 2. Filtrado de Invitados (Búsqueda Predictiva)
   // ────────────────────────────────────────────────────────
 
+  /**
+   * Memoización de la lista de invitados filtrados según el texto de búsqueda.
+   *
+   * @description Implementa una búsqueda predictiva insensible a mayúsculas/minúsculas
+   * que coincide contra cuatro campos de cada invitado:
+   *  1. nombre_completo: Nombre completo del invitado.
+   *  2. documento_identidad: Número de documento de identidad.
+   *  3. residente (nombres + apellidos): Nombre del residente que agendó la visita.
+   *  4. numero_apto: Número de apartamento del residente asociado.
+   *
+   * Si el filtro está vacío, retorna todos los invitados sin procesamiento adicional.
+   * Se recalcula solo cuando cambian invitadosHoy o filtroTexto.
+   *
+   * @returns {Array} Subconjunto de invitados que coinciden con la query de búsqueda.
+   */
   const invitadosFiltrados = useMemo(() => {
     if (!filtroTexto.trim()) return invitadosHoy;
     const query = filtroTexto.toLowerCase();
@@ -82,22 +227,47 @@ const ControlAcceso = () => {
   }, [invitadosHoy, filtroTexto]);
 
   // ────────────────────────────────────────────────────────
-  // Handlers
+  // Handlers (Manejadores de Eventos)
   // ────────────────────────────────────────────────────────
 
+  /**
+   * Handler para registrar o deshacer el check-in de un invitado.
+   *
+   * @description Ejecuta la mutación de check-in a través del hook useInvitados.
+   * Flujo interno:
+   *  1. Limpia cualquier mensaje de retroalimentación previo.
+   *  2. Invoca registrarCheckIn() con el ID del invitado y el estado deseado.
+   *  3. Si el estado es 'ingresado': marca al invitado como dentro del salón y
+   *     registra la fecha/hora actual en ingresado_a_las.
+   *  4. Si el estado es 'pendiente': revierte el ingreso y limpia ingresado_a_las.
+   *  5. Muestra un mensaje de éxito o error durante 3 segundos (setTimeout).
+   *
+   * La mutación en useInvitados automáticamente invalida la caché de TanStack
+   * Query para ['invitados', 'hoy'] y la reserva específica, lo que provoca
+   * un refetch de los datos actualizados.
+   *
+   * @param {string|number} invitadoId - ID único del invitado en la tabla invitados_reserva.
+   * @param {string} estadoIngreso - Nuevo estado: 'ingresado' para check-in, 'pendiente' para check-out.
+   * @returns {Promise<void>} No retorna valor. Los errores se capturan y se muestran en mensajeLocal.
+   */
   const handleCheckIn = async (invitadoId, estadoIngreso) => {
+    // Limpiar mensaje anterior antes de procesar
     setMensajeLocal({ tipo: '', texto: '' });
     try {
+      // Ejecutar la mutación de check-in/check-out en Supabase
       await registrarCheckIn({
         invitadoId,
         estado: estadoIngreso
       });
+      // Mostrar mensaje de éxito según la acción realizada
       setMensajeLocal({
         tipo: 'success',
         texto: estadoIngreso === 'ingresado' ? 'Ingreso registrado con éxito.' : 'Ingreso cancelado/salida registrada.'
       });
+      // Auto-limpiar el mensaje de éxito después de 3 segundos
       setTimeout(() => setMensajeLocal({ tipo: '', texto: '' }), 3000);
     } catch (err) {
+      // Capturar y mostrar errores de la mutación (ej: error de red, de Supabase)
       setMensajeLocal({
         tipo: 'error',
         texto: err.message || 'Error al procesar el check-in.'
@@ -105,7 +275,16 @@ const ControlAcceso = () => {
     }
   };
 
-  // Solo personal de portería (supervisor) o administrador puede registrar ingresos
+  // ────────────────────────────────────────────────────────
+  // Control de acceso: Solo personal autorizado
+  // ────────────────────────────────────────────────────────
+  /**
+   * Guard clause: Verificación de permisos del usuario.
+   * Solo los usuarios con rol 'administrador' o 'supervisor' (personal de portería)
+   * pueden acceder a esta página de control de acceso. Si el usuario no tiene
+   * uno de estos roles, se renderiza una tarjeta de "Acceso Denegado" en lugar
+   * del panel completo de control.
+   */
   if (!['administrador', 'supervisor'].includes(profile?.rol)) {
     return (
       <div style={styles.accesoNegadoContainer}>
@@ -118,10 +297,14 @@ const ControlAcceso = () => {
     );
   }
 
+  // ────────────────────────────────────────────────────────
+  // Renderizado principal del panel de control de acceso
+  // ────────────────────────────────────────────────────────
   return (
     <div className="fade-in" style={styles.container}>
       
-      {/* Cabecera */}
+      {/* ─── Cabecera ─── */}
+      {/* Barra superior con logo, título y botón de sincronización manual */}
       <header style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={styles.logoBadge}>
@@ -133,16 +316,26 @@ const ControlAcceso = () => {
           </div>
         </div>
 
+        {/*
+          Botón de sincronización manual.
+          Permite al portero forzar una recarga inmediata de los datos de invitados
+          de hoy, sin esperar el intervalo de auto-refetch de 15 segundos.
+          El ícono rota (clase CSS 'spin') mientras isFetching es TRUE.
+        */}
         <button onClick={() => recargarInvitados()} style={styles.btnSync} title="Sincronizar ahora">
           <RefreshCw size={16} className={isFetching ? 'spin' : ''} />
           Sincronizar
         </button>
       </header>
 
-      {/* Panel de Aforo / Dashboard de Portería */}
+      {/* ─── Panel de Aforo / Dashboard de Portería ─── */}
+      {/* Grid responsivo de 3 KPIs que muestra métricas de aforo en tiempo real.
+          Se actualiza automáticamente gracias a la memoización de aforoHoy
+          y al auto-refetch de TanStack Query cada 15 segundos. */}
       <section style={styles.aforoGrid}>
         
-        {/* KPI: Invitados Esperados */}
+        {/* KPI 1: Total de invitados programados para hoy (reservas aprobadas) */}
+        {/* Muestra la suma de todos los invitados de todas las reservas aprobadas del día. */}
         <div style={styles.kpiCard}>
           <div style={{ ...styles.kpiIcon, backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
             <Users size={22} color="#3B82F6" />
@@ -154,7 +347,8 @@ const ControlAcceso = () => {
           </div>
         </div>
 
-        {/* KPI: Invitados Ingresados */}
+        {/* KPI 2: Invitados que ya ingresaron al salón social */}
+        {/* Conteo de invitados con estado_acceso === 'ingresado' en la BD. */}
         <div style={styles.kpiCard}>
           <div style={{ ...styles.kpiIcon, backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
             <UserCheck size={22} color="#10B981" />
@@ -166,7 +360,8 @@ const ControlAcceso = () => {
           </div>
         </div>
 
-        {/* KPI: Invitados Pendientes */}
+        {/* KPI 3: Invitados que aún no han llegado */}
+        {/* Calculado como total - ingresados. Se actualiza en cada render. */}
         <div style={styles.kpiCard}>
           <div style={{ ...styles.kpiIcon, backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
             <Clock size={22} color="#F59E0B" />
@@ -179,7 +374,10 @@ const ControlAcceso = () => {
         </div>
       </section>
 
-      {/* Alertas locales */}
+      {/* ─── Alertas locales de retroalimentación ─── */}
+      {/* Muestra mensajes de éxito o error después de ejecutar una acción de check-in.
+          Se renderiza condicionalmente cuando mensajeLocal.texto tiene contenido.
+          Los estilos (colores de fondo, texto y borde) cambian según el tipo. */}
       {mensajeLocal.texto && (
         <div style={{
           ...styles.alerta,
@@ -192,7 +390,11 @@ const ControlAcceso = () => {
         </div>
       )}
 
-      {/* Filtro y Buscador predictivo */}
+      {/* ─── Filtro y Buscador predictivo ─── */}
+      {/* Campo de búsqueda que filtra la lista de invitados en tiempo real.
+          Busca por: nombre completo, documento de identidad, nombre del residente
+          asociado o número de apartamento. El filtrado se realiza en el cliente
+          (client-side) a través del useMemo invitadosFiltrados. */}
       <section style={styles.filtroCard}>
         <div style={styles.buscadorWrapper}>
           <Search size={18} color="var(--text-muted)" />
@@ -206,7 +408,16 @@ const ControlAcceso = () => {
         </div>
       </section>
 
-      {/* Listado Principal de Portería */}
+      {/* ─── Listado Principal de Portería ─── */}
+      {/* Sección principal que muestra la tabla de invitados del día.
+          Renderiza uno de tres estados posibles:
+          1. Cargando: Spinner animado mientras se obtienen los datos de Supabase.
+          2. Sin resultados: Mensaje cuando no hay invitados o el filtro no coincide.
+          3. Tabla de datos: Lista completa de invitados con acciones de check-in/check-out.
+          
+          La tabla se genera a partir de invitadosFiltrados (resultado del useMemo).
+          Cada fila muestra: nombre, documento, residente/apto, evento, hora de ingreso,
+          y un botón de acción (Dar Ingreso o Deshacer según el estado_acceso). */}
       <main style={styles.tablaCard}>
         {cargandoInvitados ? (
           <div style={styles.cargandoContenedor}>
@@ -237,22 +448,32 @@ const ControlAcceso = () => {
                 </tr>
               </thead>
               <tbody>
+                {/*
+                  Mapeo de invitados filtrados para renderizar cada fila de la tabla.
+                  Cada invitado se renderiza como una <tr> con fondo verde claro (#F0FDF4)
+                  si ya ingresó, o transparente si está pendiente.
+                  La key se asigna con inv.id (ID único de la tabla invitados_reserva).
+                */}
                 {invitadosFiltrados.map(inv => {
+                  // Bandera para determinar el estado visual y el botón a mostrar
                   const yaIngreso = inv.estado_acceso === 'ingresado';
                   return (
                     <tr key={inv.id} style={{
                       ...styles.fila,
                       backgroundColor: yaIngreso ? '#F0FDF4' : 'transparent'
                     }}>
+                      {/* Columna: Nombre del invitado */}
                       <td style={styles.celda}>
                         <div style={styles.celdaDobleLine}>
                           <span style={{ ...styles.lineaPrincipal, fontWeight: '700' }}>{inv.nombre_completo}</span>
                           <span style={styles.lineaSecundaria}>Registro digital de acceso</span>
                         </div>
                       </td>
+                      {/* Columna: Documento de identidad del invitado */}
                       <td style={styles.celda}>
                         <span style={styles.documentoText}>{inv.documento_identidad}</span>
                       </td>
+                      {/* Columna: Residente que agendó la visita y su apartamento */}
                       <td style={styles.celda}>
                         <div style={styles.celdaDobleLine}>
                           <span style={styles.lineaPrincipal}>
@@ -263,9 +484,13 @@ const ControlAcceso = () => {
                           </span>
                         </div>
                       </td>
+                      {/* Columna: Tipo de evento de la reserva */}
                       <td style={styles.celda}>
                         <span style={styles.eventoText}>{inv.reserva?.tipo_evento || 'Salón Social'}</span>
                       </td>
+                      {/* Columna: Hora de ingreso registrada (o "Sin ingresar") */}
+                      {/* Si el invitado ya ingresó, muestra la hora formateada en español.
+                          Si no, muestra un texto en itálica indicando que no ha ingresado. */}
                       <td style={styles.celda}>
                         {inv.ingresado_a_las ? (
                           <div style={{ ...styles.celdaDobleLine, color: '#059669' }}>
@@ -283,6 +508,11 @@ const ControlAcceso = () => {
                           <span style={{ color: '#64748B', fontStyle: 'italic' }}>Sin ingresar</span>
                         )}
                       </td>
+                      {/* Columna: Acciones rápidas de check-in / check-out */}
+                      {/* Botón condicional según el estado del invitado:
+                          - Si NO ha ingresado: Botón verde "Dar Ingreso" → llama a handleCheckIn con estado 'ingresado'.
+                          - Si YA ingresó: Botón gris "Deshacer" → llama a handleCheckIn con estado 'pendiente'.
+                          Ambos botones se deshabilitan (disabled) mientras registrando es TRUE (mutación en curso). */}
                       <td style={{ ...styles.celda, textAlign: 'center' }}>
                         <div style={styles.accionesFlex}>
                           {!yaIngreso ? (
@@ -315,7 +545,11 @@ const ControlAcceso = () => {
         )}
       </main>
 
-      {/* Keyframes de CSS animado */}
+      {/* ─── Keyframes de CSS animado ─── */}
+      {/* Estilos CSS embebidos para animaciones:
+          - .spin: Rotación continua del ícono RefreshCw durante la sincronización.
+          - .spinner: Indicador de carga circular (border animado) para el estado de loading.
+          Estos estilos se inyectan directamente en el DOM del componente. */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -337,6 +571,12 @@ const ControlAcceso = () => {
   );
 };
 
+// ────────────────────────────────────────────────────────
+// Objeto de estilos CSS-in-JS para el componente ControlAcceso.
+// Todos los estilos están centralizados aquí para facilitar
+// el mantenimiento y la personalización visual.
+// Se usan variables CSS (var(--primary), etc.) para theming.
+// ────────────────────────────────────────────────────────
 const styles = {
   container: {
     padding: '2rem',

@@ -1,13 +1,37 @@
 /**
- * AprobacionReservas.jsx
- * ─────────────────────────────────────────────────────────
- * Panel exclusivo del administrador para aprobar/rechazar reservas.
- * 
- * Características optimizadas:
- *  - Integración de **TanStack React Table** para una gestión de datos con ordenación y filtrado.
- *  - Indicador de **Semáforo de Prioridad** animado (Rojo: <72h con pulso animado, Amarillo: <7 días, Verde: >7 días).
- *  - KPIs en tiempo real de reservas.
- *  - Historial detallado con filtrado dinámico.
+ * @file AprobacionReservas.jsx
+ * @description Página exclusiva del panel de administración para aprobar o rechazar
+ * solicitudes de reserva del salón social de un edificio/residencial.
+ *
+ * Funcionalidades principales:
+ *  - Visualización de KPIs en tiempo real (pendientes, aprobadas, rechazadas del mes).
+ *  - Tab de "Pendientes" con tabla interactiva (TanStack React Table) que permite
+ *    ordenar por fecha de evento y filtrar por nombre de residente, número de apartamento
+ *    o tipo de evento.
+ *  - Indicador visual de "Semáforo de Prioridad" que clasifica las reservas según
+ *    la cercanía de su fecha de evento:
+ *      - Rojo (pulso animado): evento dentro de 72 horas.
+ *      - Amarillo: evento dentro de 7 días.
+ *      - Verde: evento a más de 7 días.
+ *      - Gris: evento ya vencido.
+ *  - Tab de "Historial" con reservas aprobadas/rechazadas y filtros por rango de fechas.
+ *  - Modal de detalle completo de la reserva con información del residente.
+ *  - Modal de rechazo con campo obligatorio de motivo.
+ *
+ * Hooks y contextos utilizados:
+ *  - useReservas: obtener, aprobar y rechazar reservas desde Supabase.
+ *  - useAuth: obtener el perfil y usuario autenticado.
+ *  - useUIFeedback: mostrar notificaciones toast al usuario.
+ *
+ * Componentes externos utilizados:
+ *  - @tanstack/react-table: tabla interactiva con ordenamiento.
+ *  - lucide-react: iconografía (CheckCircle, XCircle, Eye, AlertTriangle, etc.).
+ *  - EstadoBadge: badge de estado visual para cada reserva.
+ *  - Modal: componente reutilizable de ventana modal.
+ *
+ * Control de acceso:
+ *  - Solo los usuarios con rol 'administrador' o 'supervisor' pueden ver este panel.
+ *  - Si el usuario no tiene los permisos necesarios, se muestra una pantalla de acceso denegado.
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -35,9 +59,29 @@ import {
   X
 } from 'lucide-react';
 
+/**
+ * @description Componente principal del panel de aprobación de reservas.
+ * Renderiza KPIs, tabs de pendientes/historial, tablas interactivas, modales de
+ * detalle y rechazo, y controles de filtrado y ordenamiento.
+ * @returns {JSX.Element} Panel completo de administración de reservas o pantalla
+ * de acceso denegado si el usuario no tiene permisos.
+ */
 const AprobacionReservas = () => {
+  // Contexto de autenticación: obtiene el perfil del usuario y el objeto user de Supabase
   const { profile, user } = useAuth();
+  // Función para mostrar notificaciones toast al usuario
   const { showToast } = useUIFeedback();
+
+  /**
+   * Hooks del dominio de reservas:
+   *  - reservas: array completo de reservas del sistema
+   *  - loading: boolean que indica si se están cargando datos
+   *  - fetchReservas: recarga todas las reservas desde la base de datos
+   *  - aprobarReserva: cambia el estado de una reserva a 'aprobada'
+   *  - rechazarReserva: cambia el estado a 'rechaza' con un motivo
+   *  - obtenerReservasPendientes: retorna el conteo de reservas pendientes
+   *  - obtenerReservasEsteMes: retorna el conteo de reservas aprobadas del mes actual
+   */
   const {
     reservas,
     loading,
@@ -48,46 +92,72 @@ const AprobacionReservas = () => {
     obtenerReservasEsteMes
   } = useReservas();
 
-  // KPIs
+  // --- Estado de KPIs (indicadores clave de rendimiento) ---
+  /** @type {[number, function]} Número de reservas pendientes de revisión */
   const [kpiPendientes, setKpiPendientes] = useState(0);
+  /** @type {[number, function]} Número de reservas aprobadas en el mes actual */
   const [kpiAprobadas, setKpiAprobadas] = useState(0);
+  /** @type {[number, function]} Número de reservas rechazadas en el mes actual */
   const [kpiRechazadas, setKpiRechazadas] = useState(0);
 
-  // Estados locales
+  // --- Estados de navegación y filtros ---
+  /** @type {[string, function]} Tab activo actualmente: 'pendientes' o 'historial' */
   const [tabActual, setTabActual] = useState('pendientes');
+  /** @type {[string, function]} Texto de búsqueda para filtrar por nombre, apto o tipo de evento */
   const [filtroTexto, setFiltroTexto] = useState('');
+  /** @type {[string, function]} Fecha límite inferior para filtrar historial */
   const [fechaDesde, setFechaDesde] = useState('');
+  /** @type {[string, function]} Fecha límite superior para filtrar historial */
   const [fechaHasta, setFechaHasta] = useState('');
 
-  // Ordenamiento de tabla
+  // --- Estado de ordenamiento de TanStack Table ---
+  /** Configuración de sorting: ordena por 'fecha_evento' de forma ascendente por defecto */
   const [sorting, setSorting] = useState([{ id: 'fecha_evento', desc: false }]);
 
-  // Modales
+  // --- Estado de modales y formularios ---
+  /** @type {[Object|null, function]} Reserva seleccionada para ver en el modal de detalle */
   const [reservaSeleccionada, setReservaSeleccionada] = useState(null);
+  /** @type {[boolean, function]} Controla la apertura del modal de detalle de reserva */
   const [isModalDetalleAbierto, setIsModalDetalleAbierto] = useState(false);
+  /** @type {[Object|null, function]} Reserva que se está rechazando actualmente */
   const [reservaRechazar, setReservaRechazar] = useState(null);
+  /** @type {[string, function]} Texto del motivo de rechazo ingresado por el admin */
   const [motivoRechazo, setMotivoRechazo] = useState('');
+  /** @type {[boolean, function]} Controla la apertura del modal de rechazo */
   const [isModalRechazoAbierto, setIsModalRechazoAbierto] = useState(false);
+  /** @type {[boolean, function]} Indica si una operación de aprobación/rechazo está en curso (deshabilita botones) */
   const [procesando, setProcesando] = useState(false);
 
-  // Cargar datos
+  // Cargar datos al montar el componente
   useEffect(() => {
     cargarDatos();
   }, []);
 
+  /**
+   * @description Carga inicial de datos: obtiene todas las reservas y calcula los
+   * valores de los KPIs (pendientes, aprobadas del mes, rechazadas del mes).
+   * Se ejecuta al montar el componente y después de cada aprobación/rechazo exitoso.
+   * @async
+   * @returns {Promise<void>}
+   */
   const cargarDatos = async () => {
+    // Obtener todas las reservas de la base de datos
     await fetchReservas();
+
+    // Obtener conteos para los KPIs mediante el hook de reservas
     const pendientes = await obtenerReservasPendientes();
     const aprobadas = await obtenerReservasEsteMes();
 
     setKpiPendientes(pendientes);
     setKpiAprobadas(aprobadas);
 
-    // Calcular rechazadas este mes
+    // --- Cálculo de reservas rechazadas en el mes actual ---
+    // Se calcula el rango del mes actual (primer día hasta el último día)
     const ahora = new Date();
     const primerDia = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
     const ultimoDia = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
 
+    // Filtrar reservas rechazadas cuya fecha de revisión caiga dentro del mes actual
     const rechazadasEsteMes = (Array.isArray(reservas) ? reservas : []).filter(r =>
       r.estado === 'rechazada' &&
       r.fecha_revision &&
@@ -98,25 +168,68 @@ const AprobacionReservas = () => {
     setKpiRechazadas(rechazadasEsteMes);
   };
 
-  // Calcular prioridad (Semáforo) según cercanía de la fecha del evento
+  // ============================================================================
+  // SEMÁFORO DE PRIORIDAD
+  // ============================================================================
+  // Función que determina la urgencia de una reserva según la cercanía de su
+  // fecha de evento respecto a la fecha actual. Devuelve un objeto con:
+  //   - nivel: identificador del estado ('vencida', 'rojo', 'amarillo', 'verde')
+  //   - color: código hexadecimal para el indicador visual
+  //   - label: texto descriptivo para mostrar al usuario
+  //
+  // Lógica de clasificación:
+  //   - Si el evento ya pasó (días < 0)     → nivel 'vencida' (gris, sin animación)
+  //   - Si faltan 3 días o menos (≤72h)     → nivel 'rojo'   (pulso animado, alta urgencia)
+  //   - Si faltan entre 4 y 7 días          → nivel 'amarillo' (atención, proximidad)
+  //   - Si faltan más de 7 días             → nivel 'verde'   (sin urgencia)
+  //
+  // Nota: Se fuerza la hora a mediodía (T12:00:00) para evitar problemas
+  // con zonas horarias que puedan afectar el cálculo de días restantes.
+  // ============================================================================
+  /**
+   * @description Calcula la prioridad visual (semáforo) de una reserva según
+   * la fecha de su evento comparada con la fecha actual.
+   * @param {string} fechaEvento - Fecha del evento en formato 'YYYY-MM-DD'
+   * @returns {{ nivel: string, color: string, label: string }} Objeto con el
+   * nivel de prioridad, color hexadecimal y etiqueta descriptiva.
+   */
   const calcularPrioridadSemáforo = (fechaEvento) => {
     const ahora = new Date();
-    const fecha = new Date(fechaEvento + 'T12:00:00'); // Forzar mediodía para evitar zonas horarias
+    // Se agrega T12:00:00 para evitar desfases por zona horaria
+    const fecha = new Date(fechaEvento + 'T12:00:00');
+    // Calcular la diferencia en milisegundos y convertirla a días
     const diferenciaMs = fecha - ahora;
     const diasFaltantes = diferenciaMs / (1000 * 60 * 60 * 24);
 
+    // Evento ya vencido: el día ya pasó
     if (diasFaltantes < 0) return { nivel: 'vencida', color: '#64748B', label: 'Realizado/Vencido' };
+    // Urgencia alta: faltan 72 horas o menos (3 días)
     if (diasFaltantes <= 3) return { nivel: 'rojo', color: '#EF4444', label: 'Urgente (<72h)' };
+    // Atención media: faltan entre 4 y 7 días
     if (diasFaltantes <= 7) return { nivel: 'amarillo', color: '#F59E0B', label: 'Próximo (<7d)' };
+    // Sin urgencia: más de 7 días para el evento
     return { nivel: 'verde', color: '#10B981', label: 'Normal (>7d)' };
   };
 
-  // Filtrar reservas pendientes
+  // ============================================================================
+  // FILTRADO DE RESERVAS (useMemo)
+  // ============================================================================
+
+  /**
+   * Reservas pendientes sin aplicar filtros de texto.
+   * Se extraen únicamente las reservas con estado 'pendiente' del array completo.
+   * @type {Array}
+   */
   const reservasPendientesRaw = useMemo(() => {
     return reservas.filter(r => r.estado === 'pendiente');
   }, [reservas]);
 
-  // Filtrar con texto de búsqueda
+  /**
+   * Reservas pendientes filtradas por el texto de búsqueda.
+   * Busca coincidencias en el nombre completo del residente, número de apartamento
+   * o tipo de evento. La búsqueda es case-insensitive.
+   * @type {Array}
+   */
   const reservasPendientesFiltradas = useMemo(() => {
     if (!filtroTexto.trim()) return reservasPendientesRaw;
     const query = filtroTexto.toLowerCase();
@@ -128,17 +241,24 @@ const AprobacionReservas = () => {
     });
   }, [reservasPendientesRaw, filtroTexto]);
 
-  // Filtrar historial (aprobadas y rechazadas)
+  /**
+   * Historial de reservas aprobadas y rechazadas con filtros aplicados.
+   * Excluye reservas pendientes y canceladas. Aplica filtros de:
+   *  - Rango de fechas (fechaDesde / fechaHasta) sobre la fecha del evento.
+   *  - Texto de búsqueda (nombre, apartamento o tipo de evento).
+   * @type {Array}
+   */
   const historialFiltrado = useMemo(() => {
     return reservas.filter(r => {
+      // Excluir pendientes y canceladas del historial
       if (r.estado === 'pendiente' || r.estado === 'cancelada') return false;
 
-      // Filtro de fecha desde
+      // Filtro de fecha desde: excluir eventos anteriores a la fecha indicada
       if (fechaDesde && new Date(r.fecha_evento) < new Date(fechaDesde)) return false;
-      // Filtro de fecha hasta
+      // Filtro de fecha hasta: excluir eventos posteriores a la fecha indicada
       if (fechaHasta && new Date(r.fecha_evento) > new Date(fechaHasta)) return false;
 
-      // Filtro por texto de búsqueda
+      // Filtro por texto de búsqueda (mismo criterio que pendientes)
       if (filtroTexto.trim()) {
         const query = filtroTexto.toLowerCase();
         const nombre = `${r.usuarios?.nombres} ${r.usuarios?.apellidos}`.toLowerCase();
@@ -151,9 +271,20 @@ const AprobacionReservas = () => {
     });
   }, [reservas, fechaDesde, fechaHasta, filtroTexto]);
 
-  // Definición de columnas de TanStack Table para PENDIENTES
+  // ============================================================================
+  // DEFINICIÓN DE COLUMNAS - TANSTACK REACT TABLE (Pendientes)
+  // ============================================================================
+  // Cada columna define: accessor (clave de datos), header (encabezado) y cell (renderizado).
+  // La columna de acciones contiene los botones de detalle, aprobación y rechazo.
+  /**
+   * @description Arreglo de definiciones de columnas para la tabla de reservas pendientes.
+   * Incluye: residente/apartamento, fecha del evento, horario, tipo de evento,
+   * número de invitados, indicador de prioridad (semáforo) y acciones (ver, aprobar, rechazar).
+   * @type {Array}
+   */
   const columnasPendientes = useMemo(() => [
     {
+      // Columna de residente: muestra avatar con iniciales, nombre completo y apartamento
       id: 'residente',
       header: 'Residente / Apto',
       accessorFn: row => `${row.usuarios?.nombres} ${row.usuarios?.apellidos}`,
@@ -175,6 +306,7 @@ const AprobacionReservas = () => {
       }
     },
     {
+      // Columna de fecha del evento: soporta ordenamiento ascendente/descendente
       accessorKey: 'fecha_evento',
       header: ({ column }) => (
         <button style={styles.btnEncabezadoSort} onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
@@ -196,6 +328,7 @@ const AprobacionReservas = () => {
       }
     },
     {
+      // Columna de horario: muestra hora de inicio y fin en un badge
       id: 'horario',
       header: 'Horario',
       cell: info => {
@@ -204,15 +337,18 @@ const AprobacionReservas = () => {
       }
     },
     {
+      // Columna de tipo de evento: valor directo del campo tipo_evento
       accessorKey: 'tipo_evento',
       header: 'Tipo Evento',
     },
     {
+      // Columna de número de invitados: resaltado en negrita
       accessorKey: 'numero_invitados',
       header: 'Invitados',
       cell: info => <span style={{ fontWeight: '700' }}>{info.getValue()}</span>
     },
     {
+      // Columna de prioridad (semáforo): renderiza el indicador visual con color y label
       id: 'semaforo',
       header: 'Prioridad',
       cell: info => {
@@ -225,6 +361,7 @@ const AprobacionReservas = () => {
             <span style={{
               ...styles.semaforoIndicador,
               backgroundColor: semaforo.color,
+              // Animación de pulso solo para reservas urgentes (rojo)
               animation: esUrgente ? 'pulse-glow 1.5s infinite' : 'none'
             }} />
             <span style={{
@@ -239,6 +376,7 @@ const AprobacionReservas = () => {
       }
     },
     {
+      // Columna de acciones: botones de ver detalle, aprobar y rechazar reserva
       id: 'acciones',
       header: 'Acciones',
       cell: info => {
@@ -247,6 +385,7 @@ const AprobacionReservas = () => {
           <div style={styles.acciones}>
             <button
               onClick={() => {
+                // Abrir modal de detalle con la reserva seleccionada
                 setReservaSeleccionada(row);
                 setIsModalDetalleAbierto(true);
               }}
@@ -277,7 +416,17 @@ const AprobacionReservas = () => {
     }
   ], [procesando]);
 
-  // Hook de TanStack Table para pendientes
+  // ============================================================================
+  // INSTANCIA DE TANSTACK REACT TABLE
+  // ============================================================================
+  // Configura la tabla de pendientes con:
+  //  - data: reservas pendientes filtradas
+  //  - columns: definiciones de columnas
+  //  - sorting: estado de ordenamiento controlado externamente
+  //  - getCoreRowModel / getSortedRowModel: modelos de fila para renderizado y ordenamiento
+  /**
+   * @description Instancia de TanStack React Table configurada para la pestaña de pendientes.
+   */
   const tablePendientes = useReactTable({
     data: reservasPendientesFiltradas,
     columns: columnasPendientes,
@@ -287,7 +436,18 @@ const AprobacionReservas = () => {
     getSortedRowModel: getSortedRowModel()
   });
 
-  // Handlers
+  // ============================================================================
+  // HANDLERS (MANEJADORES DE EVENTOS)
+  // ============================================================================
+
+  /**
+   * @description Aprueba una reserva pendiente. Llama a aprobarReserva del hook
+   * useReservas con el ID de la reserva y el ID del usuario administrador.
+   * Muestra un toast de éxito o error, y recarga los datos actualizados.
+   * @async
+   * @param {string} reservaId - ID único de la reserva a aprobar
+   * @returns {Promise<void>}
+   */
   const handleAprobación = async (reservaId) => {
     setProcesando(true);
     try {
@@ -303,13 +463,28 @@ const AprobacionReservas = () => {
     }
   };
 
+  /**
+   * @description Abre el modal de rechazo para una reserva específica.
+   * Guarda la reserva seleccionada, limpia el motivo anterior y abre el modal.
+   * @param {Object} reserva - Objeto completo de la reserva a rechazar
+   * @returns {void}
+   */
   const handleRechazo = (reserva) => {
     setReservaRechazar(reserva);
     setMotivoRechazo('');
     setIsModalRechazoAbierto(true);
   };
 
+  /**
+   * @description Confirma el rechazo de una reserva. Valida que el motivo no esté
+   * vacío (es obligatorio), llama a rechazarReserva del hook useReservas con el
+   * ID de la reserva, ID del administrador y el motivo. Cierra el modal,
+   * muestra toast de éxito/error y recarga los datos.
+   * @async
+   * @returns {Promise<void>}
+   */
   const confirmarRechazo = async () => {
+    // Validar que el motivo de rechazo no esté vacío
     if (!motivoRechazo.trim()) {
       showToast('El motivo de rechazo es obligatorio.', 'warning');
       return;
@@ -321,6 +496,7 @@ const AprobacionReservas = () => {
       if (resultado.success) {
         showToast('Reserva rechazada correctamente.', 'success');
         await cargarDatos();
+        // Limpiar estado del modal y cerrarlo
         setIsModalRechazoAbierto(false);
         setReservaRechazar(null);
         setMotivoRechazo('');
@@ -332,6 +508,11 @@ const AprobacionReservas = () => {
     }
   };
 
+  // ============================================================================
+  // CONTROL DE ACCESO POR ROL
+  // ============================================================================
+  // Si el usuario autenticado no es administrador ni supervisor, se muestra
+  // una pantalla de acceso denegado en lugar del panel completo.
   if (!['administrador', 'supervisor'].includes(profile?.rol)) {
     return (
       <div style={styles.container}>
@@ -346,7 +527,13 @@ const AprobacionReservas = () => {
 
   return (
     <div className="fade-in" style={styles.container}>
-      {/* Estilos para animación de pulso del semáforo */}
+      {/* ============================================================================
+          ANIMACIÓN CSS - PULSO DEL SEMÁFORO
+          ============================================================================
+          Estilo inyectado para la animación 'pulse-glow' que se aplica al indicador
+          de prioridad cuando el nivel es 'rojo' (evento dentro de 72 horas).
+          La animación alterna entre un brillo con sombra y un leve cambio de escala
+          para captar la atención del administrador. */}
       <style>{`
         @keyframes pulse-glow {
           0% {
@@ -364,7 +551,7 @@ const AprobacionReservas = () => {
         }
       `}</style>
 
-      {/* Encabezado */}
+      {/* ENCABEZADO DEL PANEL */}
       <div style={styles.header}>
         <div>
           <h1 style={styles.titulo}>Panel de Aprobaciones</h1>
@@ -372,7 +559,13 @@ const AprobacionReservas = () => {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* ============================================================================
+          KPIs (INDICADORES CLAVE DE RENDIMIENTO)
+          ============================================================================
+          Muestra tres tarjetas con métricas en tiempo real:
+          - Pendientes: reservas que esperan revisión del administrador.
+          - Aprobadas: reservas aprobadas en el mes actual.
+          - Rechazadas: reservas rechazadas en el mes actual. */}
       <div style={styles.kpisContenedor}>
         <div style={styles.kpiCard}>
           <div style={{ ...styles.kpiIcono, backgroundColor: '#FEF3C7' }}>
@@ -405,7 +598,13 @@ const AprobacionReservas = () => {
         </div>
       </div>
 
-      {/* Barra de Filtros de Búsqueda */}
+      {/* ============================================================================
+          BARRA DE FILTROS Y NAVEGACIÓN POR TABS
+          ============================================================================
+          Contiene:
+          - Tabs para alternar entre "Pendientes" (reservas por revisar) e "Historial"
+            (reservas aprobadas/rechazadas).
+          - Campo de búsqueda en tiempo real que filtra por nombre, apartamento o tipo. */}
       <div style={styles.barraAcciones}>
         <div style={styles.tabs}>
           <button
@@ -442,7 +641,14 @@ const AprobacionReservas = () => {
         </div>
       </div>
 
-      {/* Contenido TAB: Pendientes (TanStack Table) */}
+      {/* ============================================================================
+          CONTENIDO DEL TAB: PENDIENTES
+          ============================================================================
+          Muestra la tabla de reservas pendientes de revisión usando TanStack Table.
+          Estados:
+          - Cargando: indicador de carga.
+          - Sin resultados: mensaje amigable cuando no hay pendientes.
+          - Con datos: tabla con columnas ordenables (fecha) y acciones (ver/aprobar/rechazar). */}
       {tabActual === 'pendientes' && (
         <div style={styles.cajaContenido}>
           {loading ? (
@@ -491,10 +697,15 @@ const AprobacionReservas = () => {
         </div>
       )}
 
-      {/* Contenido TAB: Historial */}
+      {/* ============================================================================
+          CONTENIDO DEL TAB: HISTORIAL
+          ============================================================================
+          Muestra reservas ya aprobadas o rechazadas con filtros por rango de fechas.
+          Cada fila incluye: residente, fecha del evento, decisión (badge), revisor,
+          fecha de decisión y motivo de rechazo (si aplica). */}
       {tabActual === 'historial' && (
         <div style={styles.cajaContenido}>
-          {/* Filtros de Historial */}
+          {/* Filtros de Historial: rango de fechas para acotar la búsqueda */}
           <div style={styles.filtrosHistorial}>
             <div>
               <label style={styles.labelFiltro}>Filtrar desde:</label>
@@ -594,12 +805,19 @@ const AprobacionReservas = () => {
         </div>
       )}
 
-      {/* Modal de Detalle */}
+      {/* ============================================================================
+          MODAL DE DETALLE DE RESERVA
+          ============================================================================
+          Se abre al hacer clic en el botón "Ver detalle" (ícono Eye) de una reserva.
+          Muestra información completa del residente y del evento:
+          nombre, apartamento, correo, teléfono, fecha, horario, tipo e invitados.
+          También muestra notas/descripción si la reserva las incluye. */}
       {isModalDetalleAbierto && reservaSeleccionada && (
         <Modal isOpen={isModalDetalleAbierto} onClose={() => setIsModalDetalleAbierto(false)}>
           <div style={styles.modalContenido}>
             <h2 style={styles.modalTitulo}>Detalle Completo de la Reserva</h2>
 
+            {/* Grid de detalles del residente y del evento */}
             <div style={styles.detalleGrid}>
               <div style={styles.detalleItem}>
                 <span style={styles.detalleLabel}>Residente:</span>
@@ -652,6 +870,7 @@ const AprobacionReservas = () => {
                 <span style={styles.detalleValor}>{reservaSeleccionada.numero_invitados} personas</span>
               </div>
 
+              {/* Notas/descripción: se muestra solo si la reserva tiene descripción */}
               {reservaSeleccionada.descripcion && (
                 <div style={{ ...styles.detalleItem, gridColumn: 'span 2' }}>
                   <span style={styles.detalleLabel}>Notas / Descripción:</span>
@@ -670,7 +889,12 @@ const AprobacionReservas = () => {
         </Modal>
       )}
 
-      {/* Modal de Rechazo */}
+      {/* ============================================================================
+          MODAL DE RECHAZO DE RESERVA
+          ============================================================================
+          Se abre al hacer clic en el botón "Rechazar" de una reserva pendiente.
+          Requiere que el administrador ingrese un motivo obligatorio antes de confirmar.
+          El motivo será visible para el residente como retroalimentación. */}
       {isModalRechazoAbierto && reservaRechazar && (
         <Modal isOpen={isModalRechazoAbierto} onClose={() => setIsModalRechazoAbierto(false)}>
           <div style={styles.modalContenido}>
@@ -680,6 +904,7 @@ const AprobacionReservas = () => {
               <strong>{new Date(reservaRechazar.fecha_evento + 'T12:00:00').toLocaleDateString()}</strong>.
             </p>
 
+            {/* Campo de texto para el motivo de rechazo (obligatorio) */}
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={styles.labelFiltro}>Motivo del Rechazo *</label>
               <textarea
@@ -690,6 +915,7 @@ const AprobacionReservas = () => {
               />
             </div>
 
+            {/* Botones de acción: cancelar o confirmar rechazo */}
             <div style={styles.botonesModal}>
               <button
                 onClick={() => setIsModalRechazoAbierto(false)}
@@ -716,6 +942,13 @@ const AprobacionReservas = () => {
   );
 };
 
+/**
+ * @description Objeto de estilos CSS en línea (inline styles) para todos los
+ * elementos visuales del componente. Incluye estilos para: contenedor, encabezado,
+ * KPIs, tabs, barra de búsqueda, tablas, modales, botones de acción, semáforo
+ * de prioridad, formularios y estados vacíos. Organizado por secciones para
+ * facilitar la mantenibilidad.
+ */
 const styles = {
   container: {
     padding: '2rem',
